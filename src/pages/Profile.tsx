@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Star, ChevronRight, LogOut, Moon, Sun, Car, Shield, HelpCircle, Bell } from "lucide-react";
+import { Star, ChevronRight, LogOut, Moon, Sun, Car, Shield, HelpCircle, Bell, Pencil, CreditCard, DollarSign } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
@@ -14,7 +14,10 @@ export default function Profile() {
   };
 
   const menuItems = [
-    { icon: Car, label: "Vehicle Info", show: user?.role === "driver" },
+    { icon: Pencil, label: "Edit Profile", show: true, path: "/edit-profile" },
+    { icon: CreditCard, label: "Payment Methods", show: user?.role === "customer", path: "/payment-methods" },
+    { icon: DollarSign, label: "Earnings", show: user?.role === "driver", path: "/earnings" },
+    { icon: Car, label: "Vehicle Info", show: user?.role === "driver", path: "/edit-profile" },
     { icon: Shield, label: "Safety", show: true },
     { icon: Bell, label: "Notifications", show: true },
     { icon: HelpCircle, label: "Help & Support", show: true },
@@ -79,6 +82,7 @@ export default function Profile() {
           {menuItems.map((item) => (
             <button
               key={item.label}
+              onClick={() => item.path && navigate(item.path)}
               className="flex w-full items-center justify-between rounded-xl p-4 transition-colors hover:bg-secondary"
             >
               <div className="flex items-center gap-3">

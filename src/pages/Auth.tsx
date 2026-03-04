@@ -193,7 +193,15 @@ export default function Auth() {
                 <ArrowRight size={18} className="ml-2" />
               </Button>
             </div>
-            <p className="mt-6 text-center text-sm text-muted-foreground">
+            {step === "login" && (
+              <button
+                className="mt-4 text-center text-sm text-primary"
+                onClick={() => navigate("/forgot-password")}
+              >
+                Forgot password?
+              </button>
+            )}
+            <p className="mt-4 text-center text-sm text-muted-foreground">
               {step === "login" ? "Don't have an account? " : "Already have an account? "}
               <button
                 className="font-medium text-primary"
