@@ -5,50 +5,36 @@ import { Mail, Lock, Phone, Car, Users, ArrowRight, MapPin } from "lucide-react"
 import { useApp, UserRole } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
 
 type AuthStep = "welcome" | "login" | "signup" | "role";
 
 export default function Auth() {
   const [step, setStep] = useState<AuthStep>("welcome");
-  const [role, setRole] = useState<UserRole>("customer");
+  const [role, setRole] = useState<UserRole>("CUSTOMER");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const { setUser } = useApp();
+  const { user, setUser } = useApp();
   const navigate = useNavigate();
+  const { isLoading, error, handleLogin, handleSignup } = useAuth();
 
-  const handleAuth = () => {
-    if (step === "login" || step === "signup") {
-      if (step === "signup") {
-        setStep("role");
-        return;
+  const handleAuth = async () => {
+    if (step === "login") {
+      await handleLogin(email, password);
+    } else if (step === "signup") {
+      const user = await handleSignup(name, email, phone, password, role);
+      console.log('user', user)
+      if (user) {
+        navigate("/home");
       }
-      // Mock login
-      setUser({
-        id: "1",
-        name: name || "User",
-        email,
-        phone: "",
-        role: "customer",
-        rating: 4.8,
-        totalRides: 42,
-      });
-      navigate("/home");
     }
   };
 
-  const selectRole = (selectedRole: UserRole) => {
+  const selectRoleAndProceed = (selectedRole: UserRole) => {
     setRole(selectedRole);
-    setUser({
-      id: "1",
-      name,
-      email,
-      phone: "",
-      role: selectedRole,
-      rating: 5.0,
-      totalRides: 0,
-    });
-    navigate("/home");
+    setStep("signup");
   };
 
   return (
@@ -95,7 +81,7 @@ export default function Auth() {
               <Button
                 size="lg"
                 className="w-full text-base font-semibold"
-                onClick={() => setStep("signup")}
+                onClick={() => setStep("role")}
               >
                 Get Started
                 <ArrowRight size={18} className="ml-2" />
@@ -112,6 +98,60 @@ export default function Auth() {
           </motion.div>
         )}
 
+        {step === "role" && (
+          <motion.div
+            key="role"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            className="flex flex-1 flex-col items-center px-8 pt-20"
+          >
+            <button
+              onClick={() => setStep("welcome")}
+              className="mb-8 self-start text-sm text-muted-foreground"
+            >
+              ← Back
+            </button>
+            <h2 className="mb-2 text-2xl font-bold">How will you use RideFlow?</h2>
+            <p className="mb-10 text-muted-foreground">You can change this later</p>
+            <div className="flex w-full max-w-sm flex-col gap-4">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => selectRoleAndProceed("CUSTOMER")}
+                className="flex items-center gap-4 rounded-xl border-2 border-border bg-card p-5 text-left transition-colors hover:border-primary"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
+                  <Users size={28} className="text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">I need a ride</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Request rides and get picked up
+                  </p>
+                </div>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => selectRoleAndProceed("DRIVER")}
+                className="flex items-center gap-4 rounded-xl border-2 border-border bg-card p-5 text-left transition-colors hover:border-primary"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent/10">
+                  <Car size={28} className="text-accent" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">I'm a driver</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Accept rides and earn money
+                  .
+                  </p>
+                </div>
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
         {(step === "login" || step === "signup") && (
           <motion.div
             key="auth-form"
@@ -121,7 +161,7 @@ export default function Auth() {
             className="flex flex-1 flex-col px-8 pt-16"
           >
             <button
-              onClick={() => setStep("welcome")}
+              onClick={() => setStep(step === "login" ? "welcome" : "role")}
               className="mb-8 self-start text-sm text-muted-foreground"
             >
               ← Back
@@ -134,6 +174,7 @@ export default function Auth() {
                 ? "Sign in to continue your journey"
                 : "Join RideFlow in seconds"}
             </p>
+            {error && <p className="mb-4 text-center text-red-500">{error}</p>}
             <div className="flex flex-col gap-4">
               {step === "signup" && (
                 <div className="relative">
@@ -181,15 +222,22 @@ export default function Auth() {
                     size={18}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   />
-                  <Input placeholder="Phone number" className="pl-10" />
+                  <Input
+                    placeholder="Phone number"
+                    type="tel"
+                    className="pl-10" 
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
                 </div>
               )}
               <Button
                 size="lg"
                 className="mt-2 w-full text-base font-semibold"
                 onClick={handleAuth}
+                disabled={isLoading}
               >
-                {step === "login" ? "Sign In" : "Continue"}
+                {isLoading ? "Loading..." : (step === "login" ? "Sign In" : "Create Account")}
                 <ArrowRight size={18} className="ml-2" />
               </Button>
             </div>
@@ -210,53 +258,6 @@ export default function Auth() {
                 {step === "login" ? "Sign up" : "Sign in"}
               </button>
             </p>
-          </motion.div>
-        )}
-
-        {step === "role" && (
-          <motion.div
-            key="role"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            className="flex flex-1 flex-col items-center px-8 pt-20"
-          >
-            <h2 className="mb-2 text-2xl font-bold">How will you use RideFlow?</h2>
-            <p className="mb-10 text-muted-foreground">You can change this later</p>
-            <div className="flex w-full max-w-sm flex-col gap-4">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => selectRole("customer")}
-                className="flex items-center gap-4 rounded-xl border-2 border-border bg-card p-5 text-left transition-colors hover:border-primary"
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
-                  <Users size={28} className="text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">I need a ride</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Request rides and get picked up
-                  </p>
-                </div>
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => selectRole("driver")}
-                className="flex items-center gap-4 rounded-xl border-2 border-border bg-card p-5 text-left transition-colors hover:border-primary"
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent/10">
-                  <Car size={28} className="text-accent" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">I'm a driver</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Accept rides and earn money
-                  </p>
-                </div>
-              </motion.button>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

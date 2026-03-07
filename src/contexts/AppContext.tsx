@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type UserRole = "customer" | "driver";
+export type UserRole = "CUSTOMER" | "DRIVER";
 
 interface User {
-  id: string;
+  id?: string;
   name: string;
   email: string;
   phone: string;
@@ -37,6 +37,8 @@ interface Ride {
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
+  token: string | null;
+  setToken: (token: string | null) => void;
   isAuthenticated: boolean;
   currentRide: Ride | null;
   setCurrentRide: (ride: Ride | null) => void;
@@ -64,11 +66,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.add("dark");
   }
 
+  const [token, setTokenState] = useState<string | null>(
+    localStorage.getItem("token")
+  );
+
+  const setToken = (newToken: string | null) => {
+    if (newToken) {
+      localStorage.setItem("token", newToken);
+    } else {
+      localStorage.removeItem("token");
+    }
+
+    setTokenState(newToken);
+  };
+
   return (
     <AppContext.Provider
       value={{
         user,
         setUser,
+        token,
+        setToken,
         isAuthenticated: !!user,
         currentRide,
         setCurrentRide,

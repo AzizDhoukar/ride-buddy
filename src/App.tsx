@@ -17,42 +17,44 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useApp();
-  if (!isAuthenticated) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
+const App = () => {
+  function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated } = useApp();
+    if (!isAuthenticated) return <Navigate to="/" replace />;
+    return <>{children}</>;
+  }
 
-function AppRoutes() {
-  const { isAuthenticated } = useApp();
+  function AppRoutes() {
+    const { isAuthenticated } = useApp();
+    return (
+      <Routes>
+        <Route path="/" element={isAuthenticated ? <Navigate to="/home" replace /> : <Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/rides" element={<ProtectedRoute><Rides /></ProtectedRoute>} />
+        <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+        <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethods /></ProtectedRoute>} />
+        <Route path="/earnings" element={<ProtectedRoute><Earnings /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+
   return (
-    <Routes>
-      <Route path="/" element={isAuthenticated ? <Navigate to="/home" replace /> : <Auth />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-      <Route path="/rides" element={<ProtectedRoute><Rides /></ProtectedRoute>} />
-      <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
-      <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethods /></ProtectedRoute>} />
-      <Route path="/earnings" element={<ProtectedRoute><Earnings /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AppProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AppProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
-}
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AppProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AppProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+};
 
 export default App;
