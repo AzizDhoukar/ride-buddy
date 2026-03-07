@@ -1,6 +1,5 @@
 
-import { UserRole } from "@/contexts/AppContext";
-import { useApp, User } from "@/contexts/AppContext";
+import { UserRole, User } from "@/contexts/AppContext";
 
 const API_BASE_URL = "http://localhost:9090/api";
 
@@ -21,8 +20,7 @@ export const login = async (email: string, password: string): Promise<User> => {
   return response.json();
 };
 
-export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<User> => {
-  const { setToken, user, setUser } = useApp();
+export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<{ user: User; token: string }> => {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: {
@@ -37,14 +35,14 @@ export const signup = async (name: string, email: string, phone: string, passwor
   }
   const result = await response.json();
 
-  setToken(result.token);
-  setUser({
-    id: result.userId,
-    name: name,
-    email: result.email,
-    phone: phone,
-    role: result.role,
-  });
-
-  return user;
+  return {
+    user: {
+      id: result.userId,
+      name: name,
+      email: result.email,
+      phone: phone,
+      role: result.role,
+    },
+    token: result.token,
+  };
 };

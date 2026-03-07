@@ -7,7 +7,7 @@ import { login as apiLogin, signup as apiSignup } from "@/services/api";
 export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setUser } = useApp();
+  const { setUser, setToken } = useApp(); // Added setToken
   const navigate = useNavigate();
 
   const handleLogin = async (email: string, password: string) => {
@@ -15,10 +15,12 @@ export const useAuth = () => {
     setError(null);
     try {
       const user = await apiLogin(email, password);
+      console.log('user', user);
 
       setUser(user);
       navigate("/home");
     } catch (err) {
+      console.log('err', err);
       setError((err as Error).message);
     } finally {
       setIsLoading(false);
@@ -28,9 +30,11 @@ export const useAuth = () => {
   const handleSignup = async (name: string, email: string, phone: string, password: string, role: UserRole) => {
     setIsLoading(true);
     setError(null);
-    const user = await apiSignup(name, email, phone, password, role);
-    return user;
     try {
+      const { user, token } = await apiSignup(name, email, phone, password, role); // Destructure user and token
+      setToken(token); // Set the token
+      setUser(user); // Set the user
+      return user;
     } catch (err) {
       setError((err as Error).message);
       return null;
