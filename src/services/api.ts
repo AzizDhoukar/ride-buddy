@@ -1,32 +1,10 @@
 
 import { UserRole } from "@/contexts/AppContext";
-import { useApp } from "@/contexts/AppContext";
+import { useApp, User } from "@/contexts/AppContext";
 
 const API_BASE_URL = "http://localhost:9090/api";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  rating: number;
-  totalRides: number;
-}
-
-interface LoginResponse {
-  token: string;
-  user: User;
-}
-
-interface SignupResponse {
-  token: string,
-  userId: string,
-  email: string,
-  role: string
-}
-
-export const login = async (email: string, password: string): Promise<LoginResponse> => {
+export const login = async (email: string, password: string): Promise<User> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: {
@@ -43,8 +21,8 @@ export const login = async (email: string, password: string): Promise<LoginRespo
   return response.json();
 };
 
-export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<SignupResponse> => {
-  const { setToken, setUser } = useApp();
+export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<User> => {
+  const { setToken, user, setUser } = useApp();
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: {
@@ -61,11 +39,12 @@ export const signup = async (name: string, email: string, phone: string, passwor
 
   setToken(result.token);
   setUser({
-    name: result.name,
+    id: result.userId,
+    name: name,
     email: result.email,
     phone: phone,
     role: result.role,
   });
 
-  return result;
+  return user;
 };

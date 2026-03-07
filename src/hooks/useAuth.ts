@@ -14,8 +14,7 @@ export const useAuth = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const { user } = await apiLogin(email, password);
-      console.log('user', user);
+      const user = await apiLogin(email, password);
 
       setUser(user);
       navigate("/home");
@@ -29,9 +28,9 @@ export const useAuth = () => {
   const handleSignup = async (name: string, email: string, phone: string, password: string, role: UserRole) => {
     setIsLoading(true);
     setError(null);
+    const user = await apiSignup(name, email, phone, password, role);
+    return user;
     try {
-      const user = await apiSignup(name, email, phone, password, role);
-      return user;
     } catch (err) {
       setError((err as Error).message);
       return null;

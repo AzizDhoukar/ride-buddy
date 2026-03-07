@@ -25,7 +25,7 @@ export default function Auth() {
       await handleLogin(email, password);
     } else if (step === "signup") {
       const user = await handleSignup(name, email, phone, password, role);
-      console.log('user', user)
+      console.log('user handleSignup:', user)
       if (user) {
         navigate("/home");
       }

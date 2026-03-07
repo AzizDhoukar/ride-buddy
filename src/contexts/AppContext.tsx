@@ -2,8 +2,8 @@ import { createContext, useContext, useState, ReactNode } from "react";
 
 export type UserRole = "CUSTOMER" | "DRIVER";
 
-interface User {
-  id?: string;
+export interface User {
+  id: string;
   name: string;
   email: string;
   phone: string;
