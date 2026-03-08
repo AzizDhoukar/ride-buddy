@@ -16,7 +16,7 @@ interface MapViewProps {
   driverLocation?: LocationPoint;
   customerLocation?: LocationPoint;
   showRoute?: boolean;
-  rideStatus?: "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed";
+  rideStatus?: "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" | "pending" | "canceled";
 }
 
 export default function MapView({

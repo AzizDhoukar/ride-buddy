@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Navigation, Star, Clock, Check, X, MessageCircle, Phone, DollarSign } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
@@ -7,33 +7,80 @@ import { Button } from "@/components/ui/button";
 import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
+import * as api from "@/services/api";
 
 export default function DriverHome() {
   const { user, isDriverOnline, setIsDriverOnline } = useApp();
   const navigate = useNavigate();
-  const [rideRequest, setRideRequest] = useState(false);
-  const [activeRide, setActiveRide] = useState(false);
+  const [rideRequest, setRideRequest] = useState<api.RideRequest | null>(null);
+  const [activeRide, setActiveRide] = useState<api.Ride | null>(null);
+  const [dashboard, setDashboard] = useState<api.DriverDashboard | null>(null);
   const [showChat, setShowChat] = useState(false);
 
-  const toggleOnline = () => {
+  // Fetch dashboard data when component mounts
+  useEffect(() => {
+    api.getDriverDashboard().then(setDashboard);
+  }, []);
+
+  // Polling for ride requests
+  useEffect(() => {
+    if (isDriverOnline && !rideRequest && !activeRide) {
+      const interval = setInterval(async () => {
+        const requests = await api.getRideRequests();
+        if (requests.length > 0) {
+          setRideRequest(requests[0]); // Take the first request
+        }
+      }, 4000); // Poll every 4 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isDriverOnline, rideRequest, activeRide]);
+
+  const toggleOnline = async () => {
     const next = !isDriverOnline;
+    await api.setOnlineStatus(next);
     setIsDriverOnline(next);
-    if (next) {
-      setTimeout(() => setRideRequest(true), 4000);
-    } else {
-      setRideRequest(false);
+    if (!next) {
+      setRideRequest(null);
     }
   };
 
-  const acceptRide = () => { setRideRequest(false); setActiveRide(true); };
-  const rejectRide = () => { setRideRequest(false); };
-  const completeRide = () => { setActiveRide(false); setShowChat(false); };
+  const handleAcceptRide = async () => {
+    if (!rideRequest || !user) return;
+    try {
+      const accepted = await api.acceptRide(rideRequest.id, user);
+      setActiveRide(accepted);
+      setRideRequest(null);
+    } catch (error) {
+      console.error("Failed to accept ride:", error);
+      setRideRequest(null); // Clear request if it's no longer valid
+    }
+  };
 
-  const rideStatus = activeRide ? "in-progress" : rideRequest ? "accepted" : isDriverOnline ? "idle" : "idle";
+  const handleRejectRide = async () => {
+    if (!rideRequest) return;
+    await api.rejectRide(rideRequest.id);
+    setRideRequest(null);
+  };
+
+  const handleCompleteRide = async () => {
+    if (!activeRide) return;
+    await api.updateRideStatus(activeRide.id, "completed");
+    setActiveRide(null);
+    setShowChat(false);
+    // Refetch dashboard to show updated earnings/stats
+    api.getDriverDashboard().then(setDashboard);
+  };
+
+  const getMapViewStatus = () => {
+    if (activeRide) return activeRide.status;
+    if (rideRequest) return "accepted"; // Show route to pickup
+    return "idle";
+  };
 
   return (
     <div className="relative flex h-screen flex-col">
-      <MapView className="flex-1" rideStatus={rideStatus as any} showRoute={activeRide} />
+      <MapView className="flex-1" rideStatus={getMapViewStatus()} showRoute={!!activeRide || !!rideRequest} />
 
       {/* Top status bar */}
       <div className="safe-top absolute left-0 right-0 top-0 z-10 p-4">
@@ -61,11 +108,16 @@ export default function DriverHome() {
 
       {/* Embedded chat overlay */}
       <AnimatePresence>
-        {showChat && (
+        {showChat && activeRide && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="absolute inset-x-0 bottom-16 top-16 z-30">
-            <ChatWindow recipientName="Sarah J." recipientInitials="SJ" onClose={() => setShowChat(false)} className="h-full" />
+            <ChatWindow
+              recipientName={activeRide.customerName}
+              recipientInitials={activeRide.customerName.split(" ").map(n => n[0]).join("")}
+              onClose={() => setShowChat(false)}
+              className="h-full"
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -82,19 +134,19 @@ export default function DriverHome() {
             <Button size="lg" className="w-full text-base font-semibold" onClick={toggleOnline}>Go Online</Button>
             <div className="mt-4 flex justify-center gap-6 text-center">
               <div>
-                <p className="text-lg font-bold">12</p>
+                <p className="text-lg font-bold">{dashboard?.todayRides ?? "..."}</p>
                 <p className="text-xs text-muted-foreground">Today's rides</p>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
                 <p className="flex items-center justify-center gap-1 text-lg font-bold">
-                  4.9 <Star size={14} className="fill-accent text-accent" />
+                  {dashboard?.rating ?? "..."} <Star size={14} className="fill-accent text-accent" />
                 </p>
                 <p className="text-xs text-muted-foreground">Rating</p>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <p className="text-lg font-bold">$127</p>
+                <p className="text-lg font-bold">${dashboard?.totalEarned ?? "..."}</p>
                 <p className="text-xs text-muted-foreground">Earned</p>
               </div>
             </div>
@@ -125,29 +177,31 @@ export default function DriverHome() {
               </div>
             </div>
             <div className="mb-4 flex items-center gap-3 rounded-xl bg-secondary p-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted font-bold">SJ</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted font-bold">
+                {rideRequest.customerName.split(" ").map(n => n[0]).join("")}
+              </div>
               <div className="flex-1">
-                <p className="font-semibold">Sarah J.</p>
+                <p className="font-semibold">{rideRequest.customerName}</p>
                 <div className="flex items-center gap-1">
                   <Star size={12} className="fill-accent text-accent" />
-                  <span className="text-xs text-muted-foreground">4.8 · 2.3 km away</span>
+                  <span className="text-xs text-muted-foreground">{rideRequest.customerRating} · {rideRequest.distance} km away</span>
                 </div>
               </div>
             </div>
             <div className="mb-4 space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>123 Main Street</span>
+                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>{rideRequest.pickupLocation.address}</span>
               </div>
               <div className="ml-1 h-4 border-l border-dashed border-muted-foreground" />
               <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>Central Mall, Downtown</span>
+                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>{rideRequest.destinationLocation.address}</span>
               </div>
             </div>
             <div className="flex gap-3">
-              <Button variant="destructive" size="lg" className="flex-1" onClick={rejectRide}>
+              <Button variant="destructive" size="lg" className="flex-1" onClick={handleRejectRide}>
                 <X size={18} className="mr-1" /> Decline
               </Button>
-              <Button size="lg" className="flex-1" onClick={acceptRide}>
+              <Button size="lg" className="flex-1" onClick={handleAcceptRide}>
                 <Check size={18} className="mr-1" /> Accept
               </Button>
             </div>
@@ -159,15 +213,17 @@ export default function DriverHome() {
             className="absolute bottom-16 left-0 right-0 z-10 rounded-t-3xl bg-card p-6 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-bold">Active Ride</h3>
-              <span className="rounded-full bg-ride-active/10 px-3 py-1 text-xs font-medium text-ride-active">In Progress</span>
+              <span className="rounded-full bg-ride-active/10 px-3 py-1 text-xs font-medium text-ride-active">
+                {activeRide.status === "in-progress" ? "In Progress" : "Arriving"}
+              </span>
             </div>
             <div className="mb-4 space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>123 Main Street</span>
+                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>{activeRide.pickupLocation.address}</span>
               </div>
               <div className="ml-1 h-4 border-l border-dashed border-muted-foreground" />
               <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>Central Mall, Downtown</span>
+                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>{activeRide.destinationLocation.address}</span>
               </div>
             </div>
             <div className="flex gap-3">
@@ -178,7 +234,7 @@ export default function DriverHome() {
                 <MessageCircle size={18} className="mr-2" /> Chat
               </Button>
             </div>
-            <Button size="lg" className="mt-3 w-full" onClick={completeRide}>Complete Ride</Button>
+            <Button size="lg" className="mt-3 w-full" onClick={handleCompleteRide}>Complete Ride</Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
               💰 Payment is handled directly between driver and customer.
             </p>
