@@ -78,9 +78,18 @@ export default function DriverHome() {
     return "idle";
   };
 
+  const currentRide = activeRide || rideRequest;
+
   return (
     <div className="relative flex h-screen flex-col">
-      <MapView className="flex-1" rideStatus={getMapViewStatus()} showRoute={!!activeRide || !!rideRequest} />
+      <MapView
+        className="flex-1"
+        rideStatus={getMapViewStatus()}
+        showRoute={!!currentRide}
+        pickupLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
+        dropoffLocation={currentRide?.destinationLocation ? { latitude: currentRide.destinationLocation.lat, longitude: currentRide.destinationLocation.lng } : undefined}
+        customerLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
+      />
 
       {/* Top status bar */}
       <div className="safe-top absolute left-0 right-0 top-0 z-10 p-4">

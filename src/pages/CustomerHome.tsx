@@ -160,6 +160,9 @@ export default function CustomerHome() {
         className="flex-1"
         rideStatus={getMapViewStatus()}
         showRoute={!!ride && ride.status !== "pending"}
+        driverLocation={ride?.driverLocation ? { latitude: ride.driverLocation.lat, longitude: ride.driverLocation.lng } : undefined}
+        pickupLocation={ride?.pickupLocation ? { latitude: ride.pickupLocation.lat, longitude: ride.pickupLocation.lng } : undefined}
+        dropoffLocation={ride?.destinationLocation ? { latitude: ride.destinationLocation.lat, longitude: ride.destinationLocation.lng } : undefined}
       />
 
       {/* Top bar */}
