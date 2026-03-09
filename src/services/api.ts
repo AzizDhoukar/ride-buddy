@@ -21,7 +21,6 @@ export interface Ride {
 }
 
 export interface RideRequest extends Ride {
-  // Ride request is essentially a ride in 'pending' state
   customerRating: number;
   distance: number; // in km
 }
@@ -40,8 +39,7 @@ export interface DriverDashboard {
   totalEarned: number;
 }
 
-
-// Mock database
+// --- MOCK DATABASE & HELPERS ---
 const newRideId = () => `ride_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 const newMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
@@ -67,76 +65,146 @@ let mockRides: Ride[] = [
 ];
 let mockMessages: Message[] = [];
 let isDriverOnline = false;
+let serverIntervals: NodeJS.Timeout[] = [];
 
-// --- API FUNCTIONS ---
+
+// --- WEBSOCKET SIMULATION ---
+
+type WsEvent = 'ride-update' | 'new-ride-request' | 'location-update';
+type WsListener = (data: any) => void;
+
+const listeners = new Map<WsEvent, WsListener[]>();
+
+const websocket = {
+  connect: (userId: string) => {
+    console.log(`[WS] Simulating connection for user: ${userId}`);
+    
+    if (serverIntervals.length === 0) {
+      console.log("[WS Server] Starting backend processes...");
+      const rideRequestInterval = setInterval(() => {
+        if (isDriverOnline) {
+          const pendingRide = mockRides.find(r => r.status === 'pending' && !r.driverId);
+          if (pendingRide) {
+            console.log(`[WS Server] Found pending ride ${pendingRide.id}, pushing to drivers.`);
+            const rideRequest: RideRequest = { ...pendingRide, customerRating: 4.8, distance: 2.3 };
+            websocket.trigger('new-ride-request', rideRequest);
+          }
+        }
+      }, 8000);
+
+      const rideStatusInterval = setInterval(() => {
+        const acceptedRides = mockRides.filter(r => r.status === 'accepted' || r.status === 'arriving');
+        acceptedRides.forEach(ride => {
+            if (ride.status === 'accepted') ride.status = 'arriving';
+            else if (ride.status === 'arriving') ride.status = 'in-progress';
+            console.log(`[WS Server] Auto-updated ride ${ride.id} to ${ride.status}`);
+            websocket.trigger('ride-update', ride);
+        });
+      }, 10000);
+
+      serverIntervals.push(rideRequestInterval, rideStatusInterval);
+    }
+  },
+
+  disconnect: () => {
+    console.log("[WS] Simulating disconnection.");
+    serverIntervals.forEach(clearInterval);
+    serverIntervals = [];
+    listeners.clear();
+  },
+  
+  on: (event: WsEvent, listener: WsListener) => {
+    if (!listeners.has(event)) {
+      listeners.set(event, []);
+    }
+    listeners.get(event)?.push(listener);
+    console.log(`[WS] Registered listener for event: ${event}`);
+  },
+
+  off: (event: WsEvent, listener: WsListener) => {
+    const eventListeners = listeners.get(event);
+    if (eventListeners) {
+      const index = eventListeners.indexOf(listener);
+      if (index > -1) {
+        eventListeners.splice(index, 1);
+        console.log(`[WS] Deregistered listener for event: ${event}`);
+      }
+    }
+  },
+
+  emit: (event: WsEvent, data: any) => {
+    console.log(`[WS] App emitted event: ${event}`, data);
+    if (event === 'location-update') {
+      const { rideId, location } = data;
+      const ride = mockRides.find(r => r.id === rideId);
+      if (ride) {
+        ride.driverLocation = location;
+        setTimeout(() => {
+            console.log(`[WS Server] Pushing ride-update for ${rideId}`);
+            websocket.trigger('ride-update', ride);
+        }, 200);
+      }
+    }
+  },
+
+  trigger: (event: WsEvent, data: any) => {
+    const eventListeners = listeners.get(event);
+    if (eventListeners) {
+      console.log(`[WS] Triggering event ${event} for ${eventListeners.length} listeners`);
+      eventListeners.forEach(listener => listener(JSON.parse(JSON.stringify(data))));
+    }
+  }
+};
+
+export { websocket };
+
+
+// --- API FUNCTIONS (REST) ---
 
 const API_BASE_URL = "http://localhost:9090/api";
-
 const simulateDelay = <T>(data: T, delay = 400): Promise<T> =>
   new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(data))), delay));
-
 
 export const login = async (email: string, password: string): Promise<User> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || "Failed to login");
   }
-
   return response.json();
 };
 
 export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<{ user: User; token: string }> => {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, role }),
   });
-
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || "Failed to sign up");
   }
   const result = await response.json();
-
   return {
-    user: {
-      id: result.userId,
-      name: name,
-      email: result.email,
-      phone: phone,
-      role: result.role,
-    },
+    user: { id: result.userId, name, email, phone, role: result.role },
     token: result.token,
   };
 };
 
-
 export const checkAuth = async (token: string): Promise<User> => {
   const response = await fetch(`${API_BASE_URL}/auth/me`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
-
-  if (!response.ok) {
-    throw new Error("Not authenticated");
-  }
-
+  if (!response.ok) throw new Error("Not authenticated");
   return response.json();
 };
 
 export const logout = async (token: string): Promise<void> => {
-  // In a real app, you might want to invalidate the token on the server
+  websocket.disconnect();
   console.log("Token invalidated (simulated):", token);
   return Promise.resolve();
 };
@@ -154,81 +222,42 @@ export const createRide = async (pickup: string, destination: string, customer: 
     createdAt: Date.now(),
   };
   mockRides.push(newRide);
+  websocket.trigger('ride-update', newRide);
   return simulateDelay(newRide);
-};
-
-export const getRideStatus = async (rideId: string): Promise<Ride | null> => {
-  const ride = mockRides.find(r => r.id === rideId);
-  if (!ride) return simulateDelay(null);
-
-  // Simulate driver being found
-  if (ride.status === 'pending' && Math.random() > 0.5) {
-    ride.status = 'accepted';
-    ride.driverId = 'driver-007';
-    ride.driverName = 'Ahmed K.';
-    ride.driverRating = 4.9;
-    ride.vehicle = 'White Toyota Camry · ABC 123';
-    ride.driverLocation = { lat: 34.055, lng: -118.245 };
-  } else if (ride.status === 'accepted') {
-    ride.status = 'arriving';
-  } else if (ride.status === 'arriving') {
-    ride.status = 'in-progress';
-  }
-
-  return simulateDelay(ride);
 };
 
 export const cancelRide = async (rideId: string): Promise<{ success: boolean }> => {
   const ride = mockRides.find(r => r.id === rideId);
   if (ride) {
     ride.status = 'canceled';
+    websocket.trigger('ride-update', ride);
   }
   return simulateDelay({ success: !!ride });
 };
-
 
 // --- DRIVER API ---
 
 export const setOnlineStatus = async (isOnline: boolean): Promise<{ success: boolean }> => {
   isDriverOnline = isOnline;
-  if (!isOnline) {
-    // When driver goes offline, clear pending requests for them
-    mockRides = mockRides.filter(r => r.status !== 'pending');
-  }
   return simulateDelay({ success: true });
 };
 
-export const getRideRequests = async (): Promise<RideRequest[]> => {
-  if (!isDriverOnline) return simulateDelay([]);
-
-  const pendingRides = mockRides.filter(r => r.status === 'pending');
-  console.log('pendingRides', pendingRides);
-  
-  const requests: RideRequest[] = pendingRides.map(r => ({
-    ...r,
-    customerRating: 4.8,
-    distance: 2.3,
-  }));
-  return simulateDelay(requests);
-};
-
 export const acceptRide = async (rideId: string, driver: User): Promise<Ride> => {
-  const ride = mockRides.find(r => r.id === rideId);
-  if (!ride || ride.status !== 'pending') {
-    throw new Error("Ride not available");
-  }
+  const ride = mockRides.find(r => r.id === rideId && r.status === 'pending');
+  if (!ride) throw new Error("Ride not available");
+  
   ride.status = 'accepted';
   ride.driverId = driver.id;
   ride.driverName = driver.name;
-  ride.driverRating = 4.9; // default rating
+  ride.driverRating = 4.9;
   ride.vehicle = 'Black Honda Civic · XYZ 789';
   ride.driverLocation = { lat: 34.06, lng: -118.25 };
+  
+  websocket.trigger('ride-update', ride);
   return simulateDelay(ride);
 };
 
 export const rejectRide = async (rideId: string): Promise<{ success: boolean }> => {
-  // In a real system, this would just remove the request from the current driver's queue.
-  // Here, we'll just remove it from the mock DB for simplicity.
   const initialLength = mockRides.length;
   mockRides = mockRides.filter(r => r.id !== rideId);
   return simulateDelay({ success: mockRides.length < initialLength });
@@ -241,6 +270,7 @@ export const updateRideStatus = async (rideId: string, status: "arriving" | "in-
   if (status === 'completed') {
     ride.fare = 15.50;
   }
+  websocket.trigger('ride-update', ride);
   return simulateDelay(ride);
 };
 
@@ -252,7 +282,6 @@ export const getDriverDashboard = async (): Promise<DriverDashboard> => {
   };
   return simulateDelay(dashboardData);
 };
-
 
 // --- CHAT API (Simulated) ---
 

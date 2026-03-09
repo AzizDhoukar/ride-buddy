@@ -20,45 +20,47 @@ export default function CustomerHome() {
   const [showChat, setShowChat] = useState(false);
   const [ride, setRide] = useState<api.Ride | null>(null);
 
-  // Polling for ride status
+  // Listen for ride updates via WebSocket
   useEffect(() => {
-    if (ride && ["pending", "accepted", "arriving", "in-progress"].includes(ride.status)) {
-      const interval = setInterval(async () => {
-        const updatedRide = await api.getRideStatus(ride.id);
-        if (updatedRide) {
-          setRide(updatedRide);
-          if (updatedRide.status === "completed" || updatedRide.status === "canceled") {
-            clearInterval(interval);
+    const handleRideUpdate = (updatedRide: api.Ride) => {
+      if (ride?.id === updatedRide.id || (ride === null && updatedRide.customerId === user?.id)) {
+        console.log('[WS] Received ride update:', updatedRide);
+        setRide(updatedRide);
+        setUiState("active_ride");
+
+        if (updatedRide.status === "completed" || updatedRide.status === "canceled") {
+          setTimeout(() => {
             setRide(null);
             setUiState("idle");
-          }
+            setDestination("");
+          }, 3000);
         }
-      }, 3000); // Poll every 3 seconds
+      }
+    };
 
-      return () => clearInterval(interval);
-    }
-  }, [ride]);
+    api.websocket.on('ride-update', handleRideUpdate);
+
+    return () => {
+      api.websocket.off('ride-update', handleRideUpdate);
+    };
+  }, [ride, user]);
 
   const handleSearch = async () => {
     if (!destination || !user) return;
     setUiState("searching");
     try {
-      const newRide = await api.createRide(pickup, destination, user);
-      setRide(newRide);
-      setUiState("active_ride");
+      // createRide will now trigger a websocket event that the effect above will catch
+      await api.createRide(pickup, destination, user);
     } catch (error) {
       console.error("Failed to create ride:", error);
-      setUiState("destination"); // Go back to destination selection on error
+      setUiState("destination");
     }
   };
 
   const handleCancelRide = async () => {
     if (!ride) return;
     await api.cancelRide(ride.id);
-    setRide(null);
-    setDestination("");
-    setShowChat(false);
-    setUiState("idle");
+    // The websocket event will handle the state reset
   };
 
   const getMapViewStatus = (): "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" => {

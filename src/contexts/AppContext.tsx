@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { websocket } from "@/services/api";
 
 export type UserRole = "CUSTOMER" | "DRIVER";
 
@@ -55,6 +56,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isDriverOnline, setIsDriverOnline] = useState(false);
+
+  // Manage WebSocket connection
+  useEffect(() => {
+    if (user) {
+      websocket.connect(user.id);
+    }
+    // The disconnect is called on logout via the api.logout function
+    // and when the AppProvider unmounts.
+    return () => {
+      websocket.disconnect();
+    }
+  }, [user]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);

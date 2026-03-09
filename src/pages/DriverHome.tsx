@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { lerp } from "@/lib/utils";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Navigation, Star, Clock, Check, X, MessageCircle, Phone, DollarSign } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
@@ -16,25 +17,75 @@ export default function DriverHome() {
   const [activeRide, setActiveRide] = useState<api.Ride | null>(null);
   const [dashboard, setDashboard] = useState<api.DriverDashboard | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const movementProgress = useRef(0);
 
   // Fetch dashboard data when component mounts
   useEffect(() => {
     api.getDriverDashboard().then(setDashboard);
   }, []);
 
-  // Polling for ride requests
+  // Listen for WebSocket events
   useEffect(() => {
-    if (isDriverOnline && !rideRequest && !activeRide) {
-      const interval = setInterval(async () => {
-        const requests = await api.getRideRequests();
-        if (requests.length > 0) {
-          setRideRequest(requests[0]); // Take the first request
-        }
-      }, 4000); // Poll every 4 seconds
+    const handleNewRequest = (request: api.RideRequest) => {
+      if (isDriverOnline && !rideRequest && !activeRide) {
+        console.log('[WS] Received new ride request:', request);
+        setRideRequest(request);
+      }
+    };
 
-      return () => clearInterval(interval);
-    }
+    const handleRideUpdate = (updatedRide: api.Ride) => {
+      if (activeRide?.id === updatedRide.id && updatedRide.status === 'canceled') {
+        console.log('[WS] Active ride was canceled by customer:', updatedRide);
+        setActiveRide(null);
+        setShowChat(false);
+        movementProgress.current = 0;
+      }
+    };
+
+    api.websocket.on('new-ride-request', handleNewRequest);
+    api.websocket.on('ride-update', handleRideUpdate);
+
+    return () => {
+      api.websocket.off('new-ride-request', handleNewRequest);
+      api.websocket.off('ride-update', handleRideUpdate);
+    };
   }, [isDriverOnline, rideRequest, activeRide]);
+
+  // Broadcast location when on an active ride
+  useEffect(() => {
+    if (!activeRide || !activeRide.driverLocation || !activeRide.pickupLocation) return;
+
+    const locationInterval = setInterval(() => {
+      const startLat = activeRide.driverLocation.lat;
+      const startLng = activeRide.driverLocation.lng;
+      const endLat = activeRide.pickupLocation.lat;
+      const endLng = activeRide.pickupLocation.lng;
+
+      // Simulate movement towards pickup, then towards destination
+      const targetLat = activeRide.status === "arriving" ? endLat : activeRide.destinationLocation.lat;
+      const targetLng = activeRide.status === "arriving" ? endLng : activeRide.destinationLocation.lng;
+
+      if (movementProgress.current < 1) {
+        movementProgress.current += 0.05; // Move 5% of the way each interval
+        const newLat = lerp(startLat, targetLat, movementProgress.current);
+        const newLng = lerp(startLng, targetLng, movementProgress.current);
+
+        const newLocation = { lat: newLat, lng: newLng };
+
+        api.websocket.emit('location-update', {
+          rideId: activeRide.id,
+          location: newLocation,
+        });
+
+        setActiveRide(prev => prev ? { ...prev, driverLocation: newLocation } : null);
+      } else {
+        // Optionally, stop the interval when destination is reached
+        // clearInterval(locationInterval);
+      }
+    }, 1000); // Update every second
+
+    return () => clearInterval(locationInterval);
+  }, [activeRide]);
 
   const toggleOnline = async () => {
     const next = !isDriverOnline;
@@ -51,9 +102,10 @@ export default function DriverHome() {
       const accepted = await api.acceptRide(rideRequest.id, user);
       setActiveRide(accepted);
       setRideRequest(null);
+      movementProgress.current = 0; // Reset progress
     } catch (error) {
       console.error("Failed to accept ride:", error);
-      setRideRequest(null); // Clear request if it's no longer valid
+      setRideRequest(null);
     }
   };
 
@@ -63,18 +115,25 @@ export default function DriverHome() {
     setRideRequest(null);
   };
 
+  const handleUpdateRideStatus = async (status: "arriving" | "in-progress") => {
+    if (!activeRide) return;
+    await api.updateRideStatus(activeRide.id, status);
+    setActiveRide(prev => prev ? { ...prev, status } : null);
+    movementProgress.current = 0; // Reset for next leg
+  };
+
   const handleCompleteRide = async () => {
     if (!activeRide) return;
     await api.updateRideStatus(activeRide.id, "completed");
     setActiveRide(null);
     setShowChat(false);
-    // Refetch dashboard to show updated earnings/stats
+    movementProgress.current = 0;
     api.getDriverDashboard().then(setDashboard);
   };
 
   const getMapViewStatus = () => {
     if (activeRide) return activeRide.status;
-    if (rideRequest) return "accepted"; // Show route to pickup
+    if (rideRequest) return "accepted";
     return "idle";
   };
 
@@ -86,6 +145,7 @@ export default function DriverHome() {
         className="flex-1"
         rideStatus={getMapViewStatus()}
         showRoute={!!currentRide}
+        driverLocation={activeRide?.driverLocation ? { latitude: activeRide.driverLocation.lat, longitude: activeRide.driverLocation.lng } : undefined}
         pickupLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
         dropoffLocation={currentRide?.destinationLocation ? { latitude: currentRide.destinationLocation.lat, longitude: currentRide.destinationLocation.lng } : undefined}
         customerLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
@@ -221,11 +281,30 @@ export default function DriverHome() {
           <motion.div key="active" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
             className="absolute bottom-16 left-0 right-0 z-10 rounded-t-3xl bg-card p-6 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Active Ride</h3>
+              <div>
+                <h3 className="text-lg font-bold">
+                  {activeRide.status === "arriving" ? "Arriving at Pickup" : "En Route to Destination"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {activeRide.status === "arriving"
+                    ? `Picking up ${activeRide.customerName}`
+                    : `Dropping off ${activeRide.customerName}`}
+                </p>
+              </div>
               <span className="rounded-full bg-ride-active/10 px-3 py-1 text-xs font-medium text-ride-active">
                 {activeRide.status === "in-progress" ? "In Progress" : "Arriving"}
               </span>
             </div>
+
+            <div className="my-4 h-2 rounded-full bg-secondary">
+              <motion.div
+                className="h-2 rounded-full bg-primary"
+                initial={{ width: "0%" }}
+                animate={{ width: `${movementProgress.current * 100}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+
             <div className="mb-4 space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>{activeRide.pickupLocation.address}</span>
@@ -235,6 +314,7 @@ export default function DriverHome() {
                 <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>{activeRide.destinationLocation.address}</span>
               </div>
             </div>
+
             <div className="flex gap-3">
               <Button variant="outline" size="lg" className="flex-1">
                 <Navigation size={18} className="mr-2" /> Navigate
@@ -243,7 +323,18 @@ export default function DriverHome() {
                 <MessageCircle size={18} className="mr-2" /> Chat
               </Button>
             </div>
-            <Button size="lg" className="mt-3 w-full" onClick={handleCompleteRide}>Complete Ride</Button>
+
+            {activeRide.status === "arriving" && (
+              <Button size="lg" className="mt-3 w-full" onClick={() => handleUpdateRideStatus("in-progress")}>
+                Confirm Pickup
+              </Button>
+            )}
+            {activeRide.status === "in-progress" && (
+              <Button size="lg" className="mt-3 w-full" onClick={handleCompleteRide}>
+                Complete Ride
+              </Button>
+            )}
+
             <p className="mt-3 text-center text-xs text-muted-foreground">
               💰 Payment is handled directly between driver and customer.
             </p>
