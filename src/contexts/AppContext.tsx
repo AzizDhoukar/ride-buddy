@@ -79,17 +79,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.add("dark");
   }
 
-  const [token, setTokenState] = useState<string | null>(
-    localStorage.getItem("token")
-  );
+  const [token, setTokenState] = useState<string | null>(null);
 
   const setToken = (newToken: string | null) => {
-    if (newToken) {
-      localStorage.setItem("token", newToken);
-    } else {
-      localStorage.removeItem("token");
-    }
-
     setTokenState(newToken);
   };
 

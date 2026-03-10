@@ -63,7 +63,7 @@ let mockRides: Ride[] = [
     createdAt: Date.now() - 25000,
   }
 ];
-let mockMessages: Message[] = [];
+const mockMessages: Message[] = [];
 let isDriverOnline = false;
 let serverIntervals: NodeJS.Timeout[] = [];
 
@@ -71,7 +71,7 @@ let serverIntervals: NodeJS.Timeout[] = [];
 // --- WEBSOCKET SIMULATION ---
 
 type WsEvent = 'ride-update' | 'new-ride-request' | 'location-update';
-type WsListener = (data: any) => void;
+type WsListener = (data: unknown) => void;
 
 const listeners = new Map<WsEvent, WsListener[]>();
 
@@ -147,7 +147,7 @@ const websocket = {
     }
   },
 
-  trigger: (event: WsEvent, data: any) => {
+  trigger: (event: WsEvent, data: unknown) => {
     const eventListeners = listeners.get(event);
     if (eventListeners) {
       console.log(`[WS] Triggering event ${event} for ${eventListeners.length} listeners`);
@@ -165,7 +165,7 @@ const API_BASE_URL = "http://localhost:9090/api";
 const simulateDelay = <T>(data: T, delay = 400): Promise<T> =>
   new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(data))), delay));
 
-export const login = async (email: string, password: string): Promise<User> => {
+export const login = async (email: string, password: string): Promise<{ user: User; token: string }> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -175,7 +175,11 @@ export const login = async (email: string, password: string): Promise<User> => {
     const errorData = await response.json();
     throw new Error(errorData.message || "Failed to login");
   }
-  return response.json();
+  const result = await response.json();
+  return {
+    user: { id: result.userId, name: result.name, email: result.email, phone: result.phone, role: result.role },
+    token: result.token,
+  };
 };
 
 export const signup = async (name: string, email: string, phone: string, password: string, role: UserRole): Promise<{ user: User; token: string }> => {
@@ -205,6 +209,7 @@ export const checkAuth = async (token: string): Promise<User> => {
 
 export const logout = async (token: string): Promise<void> => {
   websocket.disconnect();
+  // In a real application, you would send a request to the backend to invalidate the token
   console.log("Token invalidated (simulated):", token);
   return Promise.resolve();
 };
