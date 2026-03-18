@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { websocket } from "@/services/api";
+import { websocket } from "@/services/webservice";
 
 export type UserRole = "CUSTOMER" | "DRIVER";
 

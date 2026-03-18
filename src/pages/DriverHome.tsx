@@ -8,32 +8,35 @@ import { Button } from "@/components/ui/button";
 import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
-import * as api from "@/services/api";
+import * as webservice from "@/services/webservice";
+import { DriverDashboard, Ride, RideRequest } from "@/services/types";
+import { acceptRide, getDriverDashboard, rejectRide, setOnlineStatus, updateRideStatus } from "@/services/api";
+import { websocket } from "@/services/webservice";
 
 export default function DriverHome() {
   const { user, isDriverOnline, setIsDriverOnline } = useApp();
   const navigate = useNavigate();
-  const [rideRequest, setRideRequest] = useState<api.RideRequest | null>(null);
-  const [activeRide, setActiveRide] = useState<api.Ride | null>(null);
-  const [dashboard, setDashboard] = useState<api.DriverDashboard | null>(null);
+  const [rideRequest, setRideRequest] = useState<RideRequest | null>(null);
+  const [activeRide, setActiveRide] = useState<Ride | null>(null);
+  const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
   const [showChat, setShowChat] = useState(false);
   const movementProgress = useRef(0);
 
   // Fetch dashboard data when component mounts
   useEffect(() => {
-    api.getDriverDashboard().then(setDashboard);
+    getDriverDashboard().then(setDashboard);
   }, []);
 
   // Listen for WebSocket events
   useEffect(() => {
-    const handleNewRequest = (request: api.RideRequest) => {
+    const handleNewRequest = (request: RideRequest) => {
       if (isDriverOnline && !rideRequest && !activeRide) {
         console.log('[WS] Received new ride request:', request);
         setRideRequest(request);
       }
     };
 
-    const handleRideUpdate = (updatedRide: api.Ride) => {
+    const handleRideUpdate = (updatedRide: Ride) => {
       if (activeRide?.id === updatedRide.id && updatedRide.status === 'canceled') {
         console.log('[WS] Active ride was canceled by customer:', updatedRide);
         setActiveRide(null);
@@ -42,12 +45,12 @@ export default function DriverHome() {
       }
     };
 
-    api.websocket.on('new-ride-request', handleNewRequest);
-    api.websocket.on('ride-update', handleRideUpdate);
+    websocket.on('new-ride-request', handleNewRequest);
+    websocket.on('ride-update', handleRideUpdate);
 
     return () => {
-      api.websocket.off('new-ride-request', handleNewRequest);
-      api.websocket.off('ride-update', handleRideUpdate);
+      websocket.off('new-ride-request', handleNewRequest);
+      websocket.off('ride-update', handleRideUpdate);
     };
   }, [isDriverOnline, rideRequest, activeRide]);
 
@@ -72,7 +75,7 @@ export default function DriverHome() {
 
         const newLocation = { lat: newLat, lng: newLng };
 
-        api.websocket.emit('location-update', {
+        websocket.emit('location-update', {
           rideId: activeRide.id,
           location: newLocation,
         });
@@ -89,7 +92,7 @@ export default function DriverHome() {
 
   const toggleOnline = async () => {
     const next = !isDriverOnline;
-    await api.setOnlineStatus(next);
+    await setOnlineStatus(next);
     setIsDriverOnline(next);
     if (!next) {
       setRideRequest(null);
@@ -99,7 +102,7 @@ export default function DriverHome() {
   const handleAcceptRide = async () => {
     if (!rideRequest || !user) return;
     try {
-      const accepted = await api.acceptRide(rideRequest.id, user);
+      const accepted = await acceptRide(rideRequest.id, user);
       setActiveRide(accepted);
       setRideRequest(null);
       movementProgress.current = 0; // Reset progress
@@ -111,24 +114,24 @@ export default function DriverHome() {
 
   const handleRejectRide = async () => {
     if (!rideRequest) return;
-    await api.rejectRide(rideRequest.id);
+    await rejectRide(rideRequest.id);
     setRideRequest(null);
   };
 
   const handleUpdateRideStatus = async (status: "arriving" | "in-progress") => {
     if (!activeRide) return;
-    await api.updateRideStatus(activeRide.id, status);
+    await updateRideStatus(activeRide.id, status);
     setActiveRide(prev => prev ? { ...prev, status } : null);
     movementProgress.current = 0; // Reset for next leg
   };
 
   const handleCompleteRide = async () => {
     if (!activeRide) return;
-    await api.updateRideStatus(activeRide.id, "completed");
+    await updateRideStatus(activeRide.id, "completed");
     setActiveRide(null);
     setShowChat(false);
     movementProgress.current = 0;
-    api.getDriverDashboard().then(setDashboard);
+    getDriverDashboard().then(setDashboard);
   };
 
   const getMapViewStatus = () => {

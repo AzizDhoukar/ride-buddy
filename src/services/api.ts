@@ -1,162 +1,7 @@
 import { UserRole, User } from "@/contexts/AppContext";
-
-// --- MOCK DATA AND TYPES ---
-
-export type RideStatus = "pending" | "accepted" | "arriving" | "in-progress" | "completed" | "canceled";
-
-export interface Ride {
-  id: string;
-  customerId: string;
-  customerName: string;
-  driverId?: string;
-  driverName?: string;
-  driverLocation?: { lat: number; lng: number };
-  driverRating?: number;
-  vehicle?: string;
-  pickupLocation: { lat: number; lng: number; address: string };
-  destinationLocation: { lat: number; lng: number; address: string };
-  status: RideStatus;
-  fare?: number;
-  createdAt: number;
-}
-
-export interface RideRequest extends Ride {
-  customerRating: number;
-  distance: number; // in km
-}
-
-export interface Message {
-  id: string;
-  rideId: string;
-  senderId: string;
-  text: string;
-  timestamp: number;
-}
-
-export interface DriverDashboard {
-  todayRides: number;
-  rating: number;
-  totalEarned: number;
-}
-
-// --- MOCK DATABASE & HELPERS ---
-const newRideId = () => `ride_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-const newMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-let mockRides: Ride[] = [
-  {
-    id: newRideId(),
-    customerId: 'user_customer_1',
-    customerName: 'John Doe',
-    pickupLocation: { lat: 34.0722, lng: -118.2637, address: 'Dodger Stadium' },
-    destinationLocation: { lat: 34.043, lng: -118.2673, address: 'Staples Center' },
-    status: 'pending',
-    createdAt: Date.now() - 10000,
-  },
-  {
-    id: newRideId(),
-    customerId: 'user_customer_2',
-    customerName: 'Jane Smith',
-    pickupLocation: { lat: 34.1186, lng: -118.3004, address: 'Griffith Observatory' },
-    destinationLocation: { lat: 34.0639, lng: -118.3592, address: 'The Grove' },
-    status: 'pending',
-    createdAt: Date.now() - 25000,
-  }
-];
-const mockMessages: Message[] = [];
-let isDriverOnline = false;
-let serverIntervals: NodeJS.Timeout[] = [];
-
-
-// --- WEBSOCKET SIMULATION ---
-
-type WsEvent = 'ride-update' | 'new-ride-request' | 'location-update';
-type WsListener = (data: unknown) => void;
-
-const listeners = new Map<WsEvent, WsListener[]>();
-
-const websocket = {
-  connect: (userId: string) => {
-    console.log(`[WS] Simulating connection for user: ${userId}`);
-    
-    if (serverIntervals.length === 0) {
-      console.log("[WS Server] Starting backend processes...");
-      const rideRequestInterval = setInterval(() => {
-        if (isDriverOnline) {
-          const pendingRide = mockRides.find(r => r.status === 'pending' && !r.driverId);
-          if (pendingRide) {
-            console.log(`[WS Server] Found pending ride ${pendingRide.id}, pushing to drivers.`);
-            const rideRequest: RideRequest = { ...pendingRide, customerRating: 4.8, distance: 2.3 };
-            websocket.trigger('new-ride-request', rideRequest);
-          }
-        }
-      }, 8000);
-
-      const rideStatusInterval = setInterval(() => {
-        const acceptedRides = mockRides.filter(r => r.status === 'accepted' || r.status === 'arriving');
-        acceptedRides.forEach(ride => {
-            if (ride.status === 'accepted') ride.status = 'arriving';
-            else if (ride.status === 'arriving') ride.status = 'in-progress';
-            console.log(`[WS Server] Auto-updated ride ${ride.id} to ${ride.status}`);
-            websocket.trigger('ride-update', ride);
-        });
-      }, 10000);
-
-      serverIntervals.push(rideRequestInterval, rideStatusInterval);
-    }
-  },
-
-  disconnect: () => {
-    console.log("[WS] Simulating disconnection.");
-    serverIntervals.forEach(clearInterval);
-    serverIntervals = [];
-    listeners.clear();
-  },
-  
-  on: (event: WsEvent, listener: WsListener) => {
-    if (!listeners.has(event)) {
-      listeners.set(event, []);
-    }
-    listeners.get(event)?.push(listener);
-    console.log(`[WS] Registered listener for event: ${event}`);
-  },
-
-  off: (event: WsEvent, listener: WsListener) => {
-    const eventListeners = listeners.get(event);
-    if (eventListeners) {
-      const index = eventListeners.indexOf(listener);
-      if (index > -1) {
-        eventListeners.splice(index, 1);
-        console.log(`[WS] Deregistered listener for event: ${event}`);
-      }
-    }
-  },
-
-  emit: (event: WsEvent, data: any) => {
-    console.log(`[WS] App emitted event: ${event}`, data);
-    if (event === 'location-update') {
-      const { rideId, location } = data;
-      const ride = mockRides.find(r => r.id === rideId);
-      if (ride) {
-        ride.driverLocation = location;
-        setTimeout(() => {
-            console.log(`[WS Server] Pushing ride-update for ${rideId}`);
-            websocket.trigger('ride-update', ride);
-        }, 200);
-      }
-    }
-  },
-
-  trigger: (event: WsEvent, data: unknown) => {
-    const eventListeners = listeners.get(event);
-    if (eventListeners) {
-      console.log(`[WS] Triggering event ${event} for ${eventListeners.length} listeners`);
-      eventListeners.forEach(listener => listener(JSON.parse(JSON.stringify(data))));
-    }
-  }
-};
-
-export { websocket };
+import { Ride, DriverDashboard, Message, RideStatus } from "./types";
+import { mockRides, mockMessages, newRideId, newMessageId, isDriverOnline } from "./mockData";
+import { websocket } from "./webservice";
 
 
 // --- API FUNCTIONS (REST) ---
@@ -243,7 +88,7 @@ export const cancelRide = async (rideId: string): Promise<{ success: boolean }> 
 // --- DRIVER API ---
 
 export const setOnlineStatus = async (isOnline: boolean): Promise<{ success: boolean }> => {
-  isDriverOnline = isOnline;
+  (isDriverOnline as any) = isOnline;
   return simulateDelay({ success: true });
 };
 
@@ -264,7 +109,8 @@ export const acceptRide = async (rideId: string, driver: User): Promise<Ride> =>
 
 export const rejectRide = async (rideId: string): Promise<{ success: boolean }> => {
   const initialLength = mockRides.length;
-  mockRides = mockRides.filter(r => r.id !== rideId);
+  let rides = mockRides.filter(r => r.id !== rideId);
+  (mockRides as any) = rides;
   return simulateDelay({ success: mockRides.length < initialLength });
 };
 
