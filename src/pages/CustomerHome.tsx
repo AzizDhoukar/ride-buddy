@@ -8,6 +8,8 @@ import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
 import * as api from "@/services/api";
+import { Ride } from "@/services/types";
+import { websocket } from "@/services/webservice";
 
 type UiState = "idle" | "destination" | "searching" | "active_ride";
 
@@ -18,11 +20,11 @@ export default function CustomerHome() {
   const [pickup, setPickup] = useState("Current Location");
   const [destination, setDestination] = useState("");
   const [showChat, setShowChat] = useState(false);
-  const [ride, setRide] = useState<api.Ride | null>(null);
+  const [ride, setRide] = useState<Ride | null>(null);
 
   // Listen for ride updates via WebSocket
   useEffect(() => {
-    const handleRideUpdate = (updatedRide: api.Ride) => {
+    const handleRideUpdate = (updatedRide: Ride) => {
       if (ride?.id === updatedRide.id || (ride === null && updatedRide.customerId === user?.id)) {
         console.log('[WS] Received ride update:', updatedRide);
         setRide(updatedRide);
@@ -38,10 +40,10 @@ export default function CustomerHome() {
       }
     };
 
-    api.websocket.on('ride-update', handleRideUpdate);
+    websocket.connect(handleRideUpdate);
 
     return () => {
-      api.websocket.off('ride-update', handleRideUpdate);
+      websocket.disconnect();
     };
   }, [ride, user]);
 

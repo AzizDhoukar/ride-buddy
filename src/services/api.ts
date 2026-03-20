@@ -72,7 +72,6 @@ export const createRide = async (pickup: string, destination: string, customer: 
     createdAt: Date.now(),
   };
   mockRides.push(newRide);
-  websocket.trigger('ride-update', newRide);
   return simulateDelay(newRide);
 };
 
@@ -80,7 +79,6 @@ export const cancelRide = async (rideId: string): Promise<{ success: boolean }> 
   const ride = mockRides.find(r => r.id === rideId);
   if (ride) {
     ride.status = 'canceled';
-    websocket.trigger('ride-update', ride);
   }
   return simulateDelay({ success: !!ride });
 };
@@ -103,7 +101,6 @@ export const acceptRide = async (rideId: string, driver: User): Promise<Ride> =>
   ride.vehicle = 'Black Honda Civic · XYZ 789';
   ride.driverLocation = { lat: 34.06, lng: -118.25 };
   
-  websocket.trigger('ride-update', ride);
   return simulateDelay(ride);
 };
 
@@ -121,7 +118,6 @@ export const updateRideStatus = async (rideId: string, status: "arriving" | "in-
   if (status === 'completed') {
     ride.fare = 15.50;
   }
-  websocket.trigger('ride-update', ride);
   return simulateDelay(ride);
 };
 
@@ -152,3 +148,4 @@ export const sendMessage = async (rideId: string, senderId: string, text: string
   mockMessages.push(newMessage);
   return simulateDelay(newMessage);
 };
+

@@ -38,3 +38,10 @@ export interface DriverDashboard {
   rating: number;
   totalEarned: number;
 }
+
+export interface UpdateLocation {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+}

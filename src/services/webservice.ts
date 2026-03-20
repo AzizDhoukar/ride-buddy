@@ -1,92 +1,92 @@
-import { mockRides, isDriverOnline, serverIntervals } from "./mockData";
-import { RideRequest } from "./types";
+import * as StompJs from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
-// --- WEBSOCKET SIMULATION ---
+const stompClient = new StompJs.Client({
+    webSocketFactory: () => new SockJS('http://localhost:9090/ws'),
+    reconnectDelay: 5000
+});
 
-type WsEvent = 'ride-update' | 'new-ride-request' | 'location-update';
-type WsListener = (data: unknown) => void;
-
-const listeners = new Map<WsEvent, WsListener[]>();
+let locationSubscription: StompJs.StompSubscription | null = null;
 
 const websocket = {
-  connect: (userId: string) => {
-    console.log(`[WS] Simulating connection for user: ${userId}`);
-    
-    if (serverIntervals.length === 0) {
-      console.log("[WS Server] Starting backend processes...");
-      const rideRequestInterval = setInterval(() => {
-        if (isDriverOnline) {
-          const pendingRide = mockRides.find(r => r.status === 'pending' && !r.driverId);
-          if (pendingRide) {
-            console.log(`[WS Server] Found pending ride ${pendingRide.id}, pushing to drivers.`);
-            const rideRequest: RideRequest = { ...pendingRide, customerRating: 4.8, distance: 2.3 };
-            websocket.trigger('new-ride-request', rideRequest);
-          }
+    connect: (onConnectCallback: any) => {
+        stompClient.onConnect = () => {
+            console.log("✅ Connected to WebSocket");
+            websocket.subscribeToDriver();
+            onConnectCallback();
+        };
+
+        stompClient.onStompError = (frame) => {
+            console.error('Broker reported error: ' + frame.headers['message']);
+            console.error('Additional details: ' + frame.body);
+        };
+
+        stompClient.activate();
+    },
+
+    disconnect: () => {
+        if (stompClient.active) {
+            stompClient.deactivate();
         }
-      }, 8000);
+        console.log("🛑 Disconnected from WebSocket");
+    },
 
-      const rideStatusInterval = setInterval(() => {
-        const acceptedRides = mockRides.filter(r => r.status === 'accepted' || r.status === 'arriving');
-        acceptedRides.forEach(ride => {
-            if (ride.status === 'accepted') ride.status = 'arriving';
-            else if (ride.status === 'arriving') ride.status = 'in-progress';
-            console.log(`[WS Server] Auto-updated ride ${ride.id} to ${ride.status}`);
-            websocket.trigger('ride-update', ride);
+    subscribeToLocations: () => {
+        if (!stompClient.active) {
+            console.warn("Cannot subscribe, Stomp client is not active.");
+            return;
+        }
+        if (locationSubscription) {
+            console.warn("Already subscribed to locations. Unsubscribe first.");
+            return;
+        }
+        locationSubscription = stompClient.subscribe('/topic/locations', (message) => {
+            const data = JSON.parse(message.body);
+            console.log("📢 location data" , data);
         });
-      }, 10000);
+        console.log("📢 Subscribed to /topic/locations");
+    },
 
-      serverIntervals.push(rideRequestInterval, rideStatusInterval);
-    }
-  },
+    subscribeToDriver: () => {
+        if (!stompClient.active) {
+            console.warn("Cannot subscribe, Stomp client is not active.");
+            return;
+        }
+        if (locationSubscription) {
+            console.warn("Already subscribed to Driver. Unsubscribe first.");
+            return;
+        }
+        locationSubscription = stompClient.subscribe('/topic/driver/789', (message) => {
+            const data = JSON.parse(message.body);
+            console.log("📢 Driver location data" , data);
+        });
+        console.log("📢 Subscribed to /topic/driver/789");
+    },
 
-  disconnect: () => {
-    console.log("[WS] Simulating disconnection.");
-    serverIntervals.forEach(clearInterval);
-    serverIntervals = [];
-    listeners.clear();
-  },
-  
-  on: (event: WsEvent, listener: WsListener) => {
-    if (!listeners.has(event)) {
-      listeners.set(event, []);
-    }
-    listeners.get(event)?.push(listener);
-    console.log(`[WS] Registered listener for event: ${event}`);
-  },
+    unsubscribeFromLocations: () => {
+        if (locationSubscription) {
+            locationSubscription.unsubscribe();
+            locationSubscription = null;
+            console.log("🔕 Unsubscribed from /topic/locations");
+        }
+    },
 
-  off: (event: WsEvent, listener: WsListener) => {
-    const eventListeners = listeners.get(event);
-    if (eventListeners) {
-      const index = eventListeners.indexOf(listener);
-      if (index > -1) {
-        eventListeners.splice(index, 1);
-        console.log(`[WS] Deregistered listener for event: ${event}`);
-      }
+    sendLocation: (userId: string, latitude: number, longitude: number) => {
+        if (!stompClient.active) {
+            console.warn("Cannot send location, Stomp client is not active.");
+            return;
+        }
+        const payload = {
+            userId: userId,
+            latitude: latitude,
+            longitude: longitude
+        };
+        stompClient.publish({
+            destination: "/app/sendLocation",
+            body: JSON.stringify(payload)
+        });
+        console.log("📍 Sent location: " + JSON.stringify(payload));
     }
-  },
-
-  emit: (event: WsEvent, data: any) => {
-    console.log(`[WS] App emitted event: ${event}`, data);
-    if (event === 'location-update') {
-      const { rideId, location } = data;
-      const ride = mockRides.find(r => r.id === rideId);
-      if (ride) {
-        ride.driverLocation = location;
-        setTimeout(() => {
-            console.log(`[WS Server] Pushing ride-update for ${rideId}`);
-            websocket.trigger('ride-update', ride);
-        }, 200);
-      }
-    }
-  },
-
-  trigger: (event: WsEvent, data: unknown) => {
-    const eventListeners = listeners.get(event);
-    if (eventListeners) {
-      console.log(`[WS] Triggering event ${event} for ${eventListeners.length} listeners`);
-      eventListeners.forEach(listener => listener(JSON.parse(JSON.stringify(data))));
-    }
-  }
 };
 
 export { websocket };
