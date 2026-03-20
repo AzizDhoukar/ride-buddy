@@ -15,7 +15,6 @@ type UiState = "idle" | "destination" | "searching" | "active_ride";
 
 export default function CustomerHome() {
   const { user, token } = useApp();
-  const navigate = useNavigate();
   const [uiState, setUiState] = useState<UiState>("idle");
   const [showChat, setShowChat] = useState(false);
   const [ride, setRide] = useState<Ride | null>(null);
@@ -23,7 +22,9 @@ export default function CustomerHome() {
   // Listen for ride updates via WebSocket
   useEffect(() => {
     const handleRideUpdate = (updatedRide: Ride) => {
-      if (ride?.id === updatedRide.id || (ride === null && updatedRide.customerId === user?.id)) {
+      console.log('ride', ride);
+
+      if (ride?.id === updatedRide.id) {
         console.log('[WS] Received ride update:', updatedRide);
         setRide(updatedRide);
         setUiState("active_ride");
@@ -52,7 +53,19 @@ export default function CustomerHome() {
         const { latitude, longitude } = position.coords;
         setUiState("searching");
         try {
-          await api.createRide(latitude, longitude, token);
+          const response = await api.createRide(latitude, longitude, token);
+          setRide({
+            id: response.id,
+            customerId: response.customerId,
+            pickupLocation: {
+              lat: response.latitude,
+              lng: response.longitude,
+            },
+            status: response.status,
+            createdAt: response.createdAt,
+          });
+          console.log('response', response);
+          console.log('ride', ride);
         } catch (error) {
           console.error("Failed to create ride:", error);
           setUiState("idle");
@@ -67,9 +80,9 @@ export default function CustomerHome() {
   };
 
   const handleCancelRide = async () => {
-    if (!ride) return;
-    await api.cancelRide(ride.id);
-    // The websocket event will handle the state reset
+    await api.cancelRide(ride.id, token);
+    setRide(null);
+    setUiState('idle');
   };
 
   const getMapViewStatus = (): "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" => {
@@ -84,9 +97,9 @@ export default function CustomerHome() {
   };
 
   const renderActiveRidePanel = () => {
-    if (!ride) return null;
 
-    if (ride.status === "pending") {
+    console.log('uiState:', uiState);
+    if (uiState === "searching") {
       return (
         <motion.div key="searching" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
           className="absolute bottom-16 left-0 right-0 z-10 rounded-t-3xl bg-card p-6 shadow-2xl">
@@ -100,7 +113,7 @@ export default function CustomerHome() {
       );
     }
 
-    if (["accepted", "arriving", "in-progress"].includes(ride.status)) {
+    if (["active_ride"].includes(uiState)) {
       const getStatusText = () => {
         switch (ride.status) {
           case "accepted": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
@@ -119,18 +132,10 @@ export default function CustomerHome() {
               <p className="text-sm text-primary font-medium">{title}</p>
               <h3 className="text-lg font-bold">{subtitle}</h3>
             </div>
-            <div className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1">
-              <Star size={14} className="text-accent fill-accent" />
-              <span className="text-sm font-semibold">{ride.driverRating || "N/A"}</span>
-            </div>
           </div>
           <div className="mb-4 flex items-center gap-3 rounded-xl bg-secondary p-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-bold text-lg">
               {ride.driverName?.split(" ").map(n => n[0]).join("")}
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{ride.driverName}</p>
-              <p className="text-sm text-muted-foreground">{ride.vehicle}</p>
             </div>
           </div>
           <div className="mb-4 flex gap-2">
@@ -171,8 +176,7 @@ export default function CustomerHome() {
         rideStatus={getMapViewStatus()}
         showRoute={!!ride && ride.status !== "pending"}
         driverLocation={ride?.driverLocation ? { latitude: ride.driverLocation.lat, longitude: ride.driverLocation.lng } : undefined}
-        pickupLocation={ride?.pickupLocation ? { latitude: ride.pickupLocation.lat, longitude: ride.pickupLocation.lng } : undefined}
-        dropoffLocation={ride?.destinationLocation ? { latitude: ride.destinationLocation.lat, longitude: ride.destinationLocation.lng } : undefined}
+        customerLocation={ride?.pickupLocation ? { latitude: ride.pickupLocation.lat, longitude: ride.pickupLocation.lng } : undefined}
       />
 
       {/* Top bar */}
@@ -225,7 +229,7 @@ export default function CustomerHome() {
           </motion.div>
         )}
 
-        {uiState === "active_ride" && renderActiveRidePanel()}
+        {renderActiveRidePanel()}
 
       </AnimatePresence>
 

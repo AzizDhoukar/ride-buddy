@@ -1,6 +1,6 @@
 import { UserRole, User } from "@/contexts/AppContext";
-import { Ride, DriverDashboard, Message, RideStatus } from "./types";
-import { mockRides, mockMessages, newRideId, newMessageId, isDriverOnline } from "./mockData";
+import { Ride, DriverDashboard, Message } from "./types";
+import { mockRides, mockMessages, newMessageId, isDriverOnline } from "./mockData";
 import { websocket } from "./webservice";
 
 
@@ -61,7 +61,7 @@ export const logout = async (token: string): Promise<void> => {
 
 // --- CUSTOMER API ---
 
-export const createRide = async (lat: number, lng: number, token: string): Promise<Ride> => {
+export const createRide = async (lat: number, lng: number, token: string) => {
   const response = await fetch(`${API_BASE_URL}/rides`, {
     method: "POST",
     headers: {
@@ -82,12 +82,24 @@ export const createRide = async (lat: number, lng: number, token: string): Promi
   return response.json();
 };
 
-export const cancelRide = async (rideId: string): Promise<{ success: boolean }> => {
-  const ride = mockRides.find(r => r.id === rideId);
-  if (ride) {
-    ride.status = 'canceled';
+export const cancelRide = async (rideId: string, token: string) => {
+  const response = await fetch(`${API_BASE_URL}/rides/${rideId}/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      cancellationReason: 'nothing for now'
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to cancel ride");
   }
-  return simulateDelay({ success: !!ride });
+
+  return response.json();
 };
 
 // --- DRIVER API ---

@@ -12,7 +12,6 @@ interface LocationPoint {
 interface MapViewProps {
   className?: string;
   pickupLocation?: LocationPoint;
-  dropoffLocation?: LocationPoint;
   driverLocation?: LocationPoint;
   customerLocation?: LocationPoint;
   showRoute?: boolean;
@@ -22,10 +21,8 @@ interface MapViewProps {
 export default function MapView({
   className = "",
   pickupLocation,
-  dropoffLocation,
   driverLocation,
   customerLocation,
-  showRoute = false,
   rideStatus = "idle",
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -37,7 +34,6 @@ export default function MapView({
   const userMarker = useRef<maplibregl.Marker | null>(null);
   const driverMarker = useRef<maplibregl.Marker | null>(null);
   const pickupMarker = useRef<maplibregl.Marker | null>(null);
-  const dropoffMarker = useRef<maplibregl.Marker | null>(null);
   const customerMarker = useRef<maplibregl.Marker | null>(null);
 
   useEffect(() => {
@@ -122,6 +118,7 @@ export default function MapView({
   }, [driverLocation]);
 
   useEffect(() => {
+    console.log('pickupLocation', pickupLocation);
     if (map.current && pickupLocation) {
       if (pickupMarker.current) {
         pickupMarker.current.setLngLat([pickupLocation.longitude, pickupLocation.latitude]);
@@ -134,19 +131,7 @@ export default function MapView({
   }, [pickupLocation]);
 
   useEffect(() => {
-    if (map.current && dropoffLocation) {
-      if (dropoffMarker.current) {
-        dropoffMarker.current.setLngLat([dropoffLocation.longitude, dropoffLocation.latitude]);
-      } else {
-        dropoffMarker.current = new maplibregl.Marker({ color: "#FFFF00" }) // Yellow for dropoff
-          .setLngLat([dropoffLocation.longitude, dropoffLocation.latitude])
-          .addTo(map.current);
-      }
-    }
-  }, [dropoffLocation]);
-
-  useEffect(() => {
-    if (map.current && customerLocation) {
+    if (map.current && customerLocation && customerLocation.latitude && customerLocation.longitude) {
       if (customerMarker.current) {
         customerMarker.current.setLngLat([customerLocation.longitude, customerLocation.latitude]);
       } else {
