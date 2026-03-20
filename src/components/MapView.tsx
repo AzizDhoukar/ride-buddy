@@ -175,18 +175,6 @@ export default function MapView({
         </motion.div>
       )}
 
-      {rideStatus === "in-progress" && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute left-1/2 top-20 -translate-x-1/2 rounded-full bg-ride-active/90 px-4 py-2 shadow-lg backdrop-blur-sm"
-        >
-          <p className="text-sm font-semibold text-accent-foreground">
-            12 min to destination
-          </p>
-        </motion.div>
-      )}
-
       {/* Map attribution - MapLibre will add its own attribution */}
       <div className="absolute bottom-2 right-2 rounded bg-card/60 px-2 py-0.5 text-[9px] text-muted-foreground backdrop-blur-sm">
         OpenStreetMap via MapLibre GL JS

@@ -61,18 +61,25 @@ export const logout = async (token: string): Promise<void> => {
 
 // --- CUSTOMER API ---
 
-export const createRide = async (pickup: string, destination: string, customer: User): Promise<Ride> => {
-  const newRide: Ride = {
-    id: newRideId(),
-    customerId: customer.id,
-    customerName: customer.name,
-    pickupLocation: { lat: 34.0522, lng: -118.2437, address: pickup },
-    destinationLocation: { lat: 34.0522, lng: -118.2437, address: destination },
-    status: "pending",
-    createdAt: Date.now(),
-  };
-  mockRides.push(newRide);
-  return simulateDelay(newRide);
+export const createRide = async (lat: number, lng: number, token: string): Promise<Ride> => {
+  const response = await fetch(`${API_BASE_URL}/rides`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      pickupLatitude: lat,
+      pickupLongitude: lng,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to create ride");
+  }
+
+  return response.json();
 };
 
 export const cancelRide = async (rideId: string): Promise<{ success: boolean }> => {

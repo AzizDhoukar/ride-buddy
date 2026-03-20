@@ -9,11 +9,10 @@ const stompClient = new StompJs.Client({
 let locationSubscription: StompJs.StompSubscription | null = null;
 
 const websocket = {
-    connect: (onConnectCallback: any) => {
+    connect: () => {
         stompClient.onConnect = () => {
             console.log("✅ Connected to WebSocket");
             websocket.subscribeToDriver();
-            onConnectCallback();
         };
 
         stompClient.onStompError = (frame) => {

@@ -14,11 +14,9 @@ import { websocket } from "@/services/webservice";
 type UiState = "idle" | "destination" | "searching" | "active_ride";
 
 export default function CustomerHome() {
-  const { user } = useApp();
+  const { user, token } = useApp();
   const navigate = useNavigate();
   const [uiState, setUiState] = useState<UiState>("idle");
-  const [pickup, setPickup] = useState("Current Location");
-  const [destination, setDestination] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [ride, setRide] = useState<Ride | null>(null);
 
@@ -34,29 +32,38 @@ export default function CustomerHome() {
           setTimeout(() => {
             setRide(null);
             setUiState("idle");
-            setDestination("");
           }, 3000);
         }
       }
     };
 
-    websocket.connect(handleRideUpdate);
+    websocket.connect();
 
     return () => {
       websocket.disconnect();
     };
   }, [ride, user]);
 
-  const handleSearch = async () => {
-    if (!destination || !user) return;
-    setUiState("searching");
-    try {
-      // createRide will now trigger a websocket event that the effect above will catch
-      await api.createRide(pickup, destination, user);
-    } catch (error) {
-      console.error("Failed to create ride:", error);
-      setUiState("destination");
-    }
+  const handleRequestRide = () => {
+    if (!user || !token) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setUiState("searching");
+        try {
+          await api.createRide(latitude, longitude, token);
+        } catch (error) {
+          console.error("Failed to create ride:", error);
+          setUiState("idle");
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        // Handle error case, maybe show a toast to the user
+        alert("Could not get your location. Please enable location services.");
+      }
+    );
   };
 
   const handleCancelRide = async () => {
@@ -71,7 +78,6 @@ export default function CustomerHome() {
       case "pending": return "searching";
       case "accepted": return "accepted";
       case "arriving": return "arriving";
-      case "in-progress": return "in-progress";
       case "completed": return "completed";
       default: return "idle";
     }
@@ -99,7 +105,7 @@ export default function CustomerHome() {
         switch (ride.status) {
           case "accepted": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
           case "arriving": return { title: "Driver is arriving", subtitle: "Nearly at your pickup point" };
-          case "in-progress": return { title: "Ride in Progress", subtitle: `Heading to ${destination}` };
+          case "in-progress": return { title: "Ride in Progress", subtitle: `Heading to Random Destination` };
           default: return { title: "", subtitle: "" };
         }
       };
@@ -130,12 +136,12 @@ export default function CustomerHome() {
           <div className="mb-4 flex gap-2">
             <div className="flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
               <MapPin size={14} className="text-primary" />
-              <span className="text-muted-foreground">{pickup}</span>
+              <span className="text-muted-foreground">Current Location</span>
             </div>
             <div className="mx-1 text-muted-foreground">→</div>
             <div className="flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
               <MapPin size={14} className="text-accent" />
-              <span className="text-muted-foreground">{destination}</span>
+              <span className="text-muted-foreground">Random Destination</span>
             </div>
           </div>
           <div className="flex gap-3">
@@ -213,49 +219,8 @@ export default function CustomerHome() {
         {uiState === "idle" && (
           <motion.div key="idle" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
             className="absolute bottom-16 left-0 right-0 z-10 rounded-t-3xl bg-card p-6 shadow-2xl">
-            <h2 className="mb-4 text-lg font-bold">Where to?</h2>
-            <button onClick={() => setUiState("destination")}
-              className="flex w-full items-center gap-3 rounded-xl bg-secondary p-4 text-left transition-colors hover:bg-secondary/80">
-              <Search size={20} className="text-muted-foreground" />
-              <span className="text-muted-foreground">Enter destination</span>
-            </button>
-            <div className="mt-4 flex gap-3">
-              {["Home", "Work", "Airport"].map((place) => (
-                <button key={place} onClick={() => { setDestination(place); setUiState("destination"); }}
-                  className="rounded-full bg-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground">
-                  {place}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => navigate("/payment-methods")}
-              className="mt-3 flex w-full items-center gap-2 rounded-xl p-3 text-sm text-muted-foreground transition-colors hover:bg-secondary">
-              <CreditCard size={16} />
-              <span>Payment: Cash (default)</span>
-            </button>
-          </motion.div>
-        )}
-
-        {uiState === "destination" && (
-          <motion.div key="destination" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
-            className="absolute bottom-16 left-0 right-0 z-10 rounded-t-3xl bg-card p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Set Route</h2>
-              <button onClick={() => setUiState("idle")}><X size={20} className="text-muted-foreground" /></button>
-            </div>
-            <div className="mb-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3 rounded-xl bg-secondary p-3">
-                <div className="h-3 w-3 rounded-full bg-primary" />
-                <input className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="Pickup location" />
-              </div>
-              <div className="flex items-center gap-3 rounded-xl bg-secondary p-3">
-                <div className="h-3 w-3 rounded-full bg-accent" />
-                <input className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Where to?" autoFocus />
-              </div>
-            </div>
-            <Button size="lg" className="w-full text-base font-semibold" onClick={handleSearch} disabled={!destination}>
-              <Navigation size={18} className="mr-2" /> Find a Ride
+            <Button size="lg" className="w-full text-base font-semibold" onClick={handleRequestRide}>
+              <Navigation size={18} className="mr-2" /> Request a Ride
             </Button>
           </motion.div>
         )}
