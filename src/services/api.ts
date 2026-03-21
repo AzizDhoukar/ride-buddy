@@ -107,7 +107,9 @@ export const cancelRide = async (rideId: string, token: string) => {
 
 
 export const setOnlineStatus = async (isOnline: boolean): Promise<{ success: boolean }> => {
-  (isDriverOnline as any) = isOnline;
+  console.log('isDriverOnline', isDriverOnline);
+    console.log('isDriverOnline', isDriverOnline);
+
   return simulateDelay({ success: true });
 };
 

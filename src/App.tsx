@@ -11,7 +11,6 @@ import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import EditProfile from "./pages/EditProfile";
 import PaymentMethods from "./pages/PaymentMethods";
-import Earnings from "./pages/Earnings";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 
@@ -36,7 +35,6 @@ const App = () => {
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
         <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethods /></ProtectedRoute>} />
-        <Route path="/earnings" element={<ProtectedRoute><Earnings /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     );

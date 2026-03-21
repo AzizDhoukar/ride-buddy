@@ -16,7 +16,6 @@ export default function Profile() {
   const menuItems = [
     { icon: Pencil, label: "Edit Profile", show: true, path: "/edit-profile" },
     { icon: CreditCard, label: "Payment Methods", show: user?.role === "CUSTOMER", path: "/payment-methods" },
-    { icon: DollarSign, label: "Earnings", show: user?.role === "DRIVER", path: "/earnings" },
     { icon: Car, label: "Vehicle Info", show: user?.role === "DRIVER", path: "/edit-profile" },
     { icon: Shield, label: "Safety", show: true },
     { icon: Bell, label: "Notifications", show: true },

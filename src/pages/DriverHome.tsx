@@ -157,11 +157,6 @@ export default function DriverHome() {
                 <MessageCircle size={20} className="text-primary" />
               </button>
             )}
-            {isDriverOnline && (
-              <button onClick={() => navigate("/earnings")} className="rounded-full bg-card/90 p-2.5 shadow-lg backdrop-blur-sm">
-                <DollarSign size={20} className="text-primary" />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -204,16 +199,7 @@ export default function DriverHome() {
                 </p>
                 <p className="text-xs text-muted-foreground">Rating</p>
               </div>
-              <div className="h-8 w-px bg-border" />
-              <div>
-                <p className="text-lg font-bold">${dashboard?.totalEarned ?? "..."}</p>
-                <p className="text-xs text-muted-foreground">Earned</p>
-              </div>
             </div>
-            <button onClick={() => navigate("/earnings")}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl p-2 text-sm text-primary transition-colors hover:bg-primary/5">
-              <DollarSign size={16} /> View Earnings
-            </button>
           </motion.div>
         )}
 
