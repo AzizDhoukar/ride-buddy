@@ -45,12 +45,10 @@ export default function DriverHome() {
       }
     };
 
-    websocket.on('new-ride-request', handleNewRequest);
-    websocket.on('ride-update', handleRideUpdate);
+    websocket.connect();
 
     return () => {
-      websocket.off('new-ride-request', handleNewRequest);
-      websocket.off('ride-update', handleRideUpdate);
+      websocket.disconnect();
     };
   }, [isDriverOnline, rideRequest, activeRide]);
 
@@ -61,24 +59,15 @@ export default function DriverHome() {
     const locationInterval = setInterval(() => {
       const startLat = activeRide.driverLocation.lat;
       const startLng = activeRide.driverLocation.lng;
-      const endLat = activeRide.pickupLocation.lat;
-      const endLng = activeRide.pickupLocation.lng;
-
-      // Simulate movement towards pickup, then towards destination
-      const targetLat = activeRide.status === "arriving" ? endLat : activeRide.destinationLocation.lat;
-      const targetLng = activeRide.status === "arriving" ? endLng : activeRide.destinationLocation.lng;
 
       if (movementProgress.current < 1) {
         movementProgress.current += 0.05; // Move 5% of the way each interval
-        const newLat = lerp(startLat, targetLat, movementProgress.current);
-        const newLng = lerp(startLng, targetLng, movementProgress.current);
+        const newLat = lerp(startLat, startLng*10, movementProgress.current);
+        const newLng = lerp(startLng, startLng*10, movementProgress.current);
 
         const newLocation = { lat: newLat, lng: newLng };
 
-        websocket.emit('location-update', {
-          rideId: activeRide.id,
-          location: newLocation,
-        });
+        websocket.sendLocation('789', newLat, newLng);
 
         setActiveRide(prev => prev ? { ...prev, driverLocation: newLocation } : null);
       } else {
@@ -150,7 +139,6 @@ export default function DriverHome() {
         showRoute={!!currentRide}
         driverLocation={activeRide?.driverLocation ? { latitude: activeRide.driverLocation.lat, longitude: activeRide.driverLocation.lng } : undefined}
         pickupLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
-        dropoffLocation={currentRide?.destinationLocation ? { latitude: currentRide.destinationLocation.lat, longitude: currentRide.destinationLocation.lng } : undefined}
         customerLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
       />
 
@@ -260,15 +248,6 @@ export default function DriverHome() {
                 </div>
               </div>
             </div>
-            <div className="mb-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>{rideRequest.pickupLocation.address}</span>
-              </div>
-              <div className="ml-1 h-4 border-l border-dashed border-muted-foreground" />
-              <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>{rideRequest.destinationLocation.address}</span>
-              </div>
-            </div>
             <div className="flex gap-3">
               <Button variant="destructive" size="lg" className="flex-1" onClick={handleRejectRide}>
                 <X size={18} className="mr-1" /> Decline
@@ -306,16 +285,6 @@ export default function DriverHome() {
                 animate={{ width: `${movementProgress.current * 100}%` }}
                 transition={{ duration: 0.5 }}
               />
-            </div>
-
-            <div className="mb-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" /> <span>{activeRide.pickupLocation.address}</span>
-              </div>
-              <div className="ml-1 h-4 border-l border-dashed border-muted-foreground" />
-              <div className="flex items-center gap-2 text-sm">
-                <div className="h-2.5 w-2.5 rounded-full bg-accent" /> <span>{activeRide.destinationLocation.address}</span>
-              </div>
             </div>
 
             <div className="flex gap-3">

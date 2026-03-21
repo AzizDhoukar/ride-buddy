@@ -7,6 +7,7 @@ export type RideStatus = "pending" | "accepted" | "arriving" | "in-progress" | "
 export interface Ride {
   id: string;
   customerId: string;
+  customerName?: string;
   driverId?: string;
   driverName?: string;
   driverLocation?: { lat: number; lng: number };

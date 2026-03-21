@@ -104,6 +104,8 @@ export const cancelRide = async (rideId: string, token: string) => {
 
 // --- DRIVER API ---
 
+
+
 export const setOnlineStatus = async (isOnline: boolean): Promise<{ success: boolean }> => {
   (isDriverOnline as any) = isOnline;
   return simulateDelay({ success: true });
@@ -116,8 +118,6 @@ export const acceptRide = async (rideId: string, driver: User): Promise<Ride> =>
   ride.status = 'accepted';
   ride.driverId = driver.id;
   ride.driverName = driver.name;
-  ride.driverRating = 4.9;
-  ride.vehicle = 'Black Honda Civic · XYZ 789';
   ride.driverLocation = { lat: 34.06, lng: -118.25 };
   
   return simulateDelay(ride);
@@ -134,9 +134,6 @@ export const updateRideStatus = async (rideId: string, status: "arriving" | "in-
   const ride = mockRides.find(r => r.id === rideId);
   if (!ride) throw new Error("Ride not found");
   ride.status = status;
-  if (status === 'completed') {
-    ride.fare = 15.50;
-  }
   return simulateDelay(ride);
 };
 

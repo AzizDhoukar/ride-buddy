@@ -70,13 +70,13 @@ const websocket = {
         }
     },
 
-    sendLocation: (userId: string, latitude: number, longitude: number) => {
+    sendLocation: (driverId: string, latitude: number, longitude: number) => {
         if (!stompClient.active) {
             console.warn("Cannot send location, Stomp client is not active.");
             return;
         }
         const payload = {
-            userId: userId,
+            userId: driverId,
             latitude: latitude,
             longitude: longitude
         };

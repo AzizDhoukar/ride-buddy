@@ -80,9 +80,14 @@ export default function CustomerHome() {
   };
 
   const handleCancelRide = async () => {
-    await api.cancelRide(ride.id, token);
-    setRide(null);
-    setUiState('idle');
+    if (!ride || !token) return;
+    try {
+      await api.cancelRide(ride.id, token);
+      setRide(null);
+      setUiState("idle");
+    } catch (error) {
+      console.error("Failed to cancel ride:", error);
+    }
   };
 
   const getMapViewStatus = (): "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" => {
