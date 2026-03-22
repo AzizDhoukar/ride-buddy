@@ -51,18 +51,20 @@ export default function DriverHome() {
 
   // Broadcast location
   useEffect(() => {
-    if (!isDriverOnline) return;
-
     
-    const locationInterval = setInterval(() => {
-      const startLat = activeRide.driverLocation.lat;
-      const startLng = activeRide.driverLocation.lng;
-      websocket.sendLocation('789', startLng, startLat);
+    if (!isDriverOnline) return;
+    console.log('isDriverOnline', isDriverOnline);
 
+    const locationInterval = setInterval(() => {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        console.log('new position: ', user.id, longitude, latitude);
+        websocket.sendLocation(user.id, longitude, latitude);
+      });
     }, 2000); // Update every 2 seconds
 
     return () => clearInterval(locationInterval);
-  }, [activeRide]);
+  }, [isDriverOnline]);
 
   const toggleOnline = async () => {
     const next = !isDriverOnline;

@@ -1,4 +1,5 @@
 import * as StompJs from '@stomp/stompjs';
+import { timeStamp } from 'console';
 import SockJS from 'sockjs-client';
 
 const stompClient = new StompJs.Client({
@@ -76,12 +77,13 @@ const websocket = {
             return;
         }
         const payload = {
-            userId: driverId,
-            latitude: latitude,
-            longitude: longitude
+            driverId,
+            latitude,
+            longitude,
+            timestamp: new Date()
         };
         stompClient.publish({
-            destination: "/app/sendLocation",
+            destination: "/app/driver/location-update",
             body: JSON.stringify(payload)
         });
         console.log("📍 Sent location: " + JSON.stringify(payload));
