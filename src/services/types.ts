@@ -2,7 +2,7 @@ import { UserRole, User } from "@/contexts/AppContext";
 
 // --- MOCK DATA AND TYPES ---
 
-export type RideStatus = "pending" | "accepted" | "arriving" | "in-progress" | "completed" | "canceled";
+export type RideStatus = "pending" | "in-progress" | "completed" | "canceled";
 
 export interface Ride {
   id: string;
@@ -17,7 +17,6 @@ export interface Ride {
 }
 
 export interface RideRequest extends Ride {
-  customerRating: number;
   distance: number; // in km
 }
 

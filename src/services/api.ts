@@ -127,16 +127,34 @@ export const setOnlineStatus = async (isOnline: boolean, useId:string, token: st
   }
 };
 
-export const acceptRide = async (rideId: string, driver: User): Promise<Ride> => {
-  const ride = mockRides.find(r => r.id === rideId && r.status === 'pending');
-  if (!ride) throw new Error("Ride not available");
-  
-  ride.status = 'accepted';
-  ride.driverId = driver.id;
-  ride.driverName = driver.name;
-  ride.driverLocation = { lat: 34.06, lng: -118.25 };
-  
-  return simulateDelay(ride);
+export const acceptRide = async (rideId: string, token: string): Promise<Ride> => {
+    const response = await fetch(`${API_BASE_URL}/ride-requests/${rideId}/accept`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to accept ride");
+  }
+
+  const data = await response.json();
+  let ride: Ride = {
+    id: data.id,
+    customerId: data.customerId,
+    driverId: data.driverId,
+    pickupLocation: {
+      lat: data.pickupLatitude,
+      lng: data.pickupLongitude
+    },
+    status: data.status,
+    createdAt: data.requestedAt
+  };
+
+  return ride;
 };
 
 export const rejectRide = async (rideId: string): Promise<{ success: boolean }> => {
@@ -146,7 +164,7 @@ export const rejectRide = async (rideId: string): Promise<{ success: boolean }> 
   return simulateDelay({ success: mockRides.length < initialLength });
 };
 
-export const updateRideStatus = async (rideId: string, status: "arriving" | "in-progress" | "completed"): Promise<Ride> => {
+export const updateRideStatus = async (rideId: string, status: "in-progress" | "completed"): Promise<Ride> => {
   const ride = mockRides.find(r => r.id === rideId);
   if (!ride) throw new Error("Ride not found");
   ride.status = status;

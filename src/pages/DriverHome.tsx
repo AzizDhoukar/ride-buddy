@@ -25,6 +25,21 @@ export default function DriverHome() {
     subscribeToRideRequests
   } = useWebSocket();
 
+  useEffect(() => {
+    if (!isDriverOnline) return;
+
+    subscribeToRideRequests((request: RideRequest) => {
+      if (!rideRequest && !activeRide) {
+        console.log('[WS] Received new ride request:', request);
+        setRideRequest(request);
+      }
+    });
+
+    return () => {
+      unsubscribeFromRideRequests();
+    };
+  }, [isDriverOnline]);
+
   // Fetch dashboard data when component mounts
   useEffect(() => {
     getDriverDashboard().then(setDashboard);
@@ -49,7 +64,6 @@ export default function DriverHome() {
     };
 
     return () => {
-      disconnect();
     };
   }, [isDriverOnline, rideRequest, activeRide]);
 
@@ -74,7 +88,6 @@ export default function DriverHome() {
     await setOnlineStatus(next, user.id, token);
     setIsDriverOnline(next);
     if (next) {
-      subscribeToRideRequests();
     } else {
       setRideRequest(null);
       unsubscribeFromRideRequests();
@@ -85,10 +98,9 @@ export default function DriverHome() {
   const handleAcceptRide = async () => {
     if (!rideRequest || !user) return;
     try {
-      const accepted = await acceptRide(rideRequest.id, user);
-      setActiveRide(accepted);
+      const acceptedRide = await acceptRide(rideRequest.id, token);
+      setActiveRide(acceptedRide);
       setRideRequest(null);
-      movementProgress.current = 0; // Reset progress
     } catch (error) {
       console.error("Failed to accept ride:", error);
       setRideRequest(null);
@@ -101,7 +113,7 @@ export default function DriverHome() {
     setRideRequest(null);
   };
 
-  const handleUpdateRideStatus = async (status: "arriving" | "in-progress") => {
+  const handleUpdateRideStatus = async (status: "in-progress") => {
     if (!activeRide) return;
     await updateRideStatus(activeRide.id, status);
     setActiveRide(prev => prev ? { ...prev, status } : null);
@@ -222,10 +234,6 @@ export default function DriverHome() {
               </div>
               <div className="flex-1">
                 <p className="font-semibold">{rideRequest.customerName}</p>
-                <div className="flex items-center gap-1">
-                  <Star size={12} className="fill-accent text-accent" />
-                  <span className="text-xs text-muted-foreground">{rideRequest.customerRating} · {rideRequest.distance} km away</span>
-                </div>
               </div>
             </div>
             <div className="flex gap-3">
@@ -245,10 +253,10 @@ export default function DriverHome() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold">
-                  {activeRide.status === "arriving" ? "Arriving at Pickup" : "En Route to Destination"}
+                  {activeRide.status === "in-progress" ? "Arriving at Pickup" : "En Route to Destination"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {activeRide.status === "arriving"
+                  {activeRide.status === "in-progress"
                     ? `Picking up ${activeRide.customerName}`
                     : `Dropping off ${activeRide.customerName}`}
                 </p>
@@ -268,22 +276,14 @@ export default function DriverHome() {
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" size="lg" className="flex-1">
-                <Navigation size={18} className="mr-2" /> Navigate
-              </Button>
               <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowChat(true)}>
                 <MessageCircle size={18} className="mr-2" /> Chat
               </Button>
             </div>
 
-            {activeRide.status === "arriving" && (
-              <Button size="lg" className="mt-3 w-full" onClick={() => handleUpdateRideStatus("in-progress")}>
-                Confirm Pickup
-              </Button>
-            )}
             {activeRide.status === "in-progress" && (
-              <Button size="lg" className="mt-3 w-full" onClick={handleCompleteRide}>
-                Complete Ride
+              <Button size="lg" className="mt-3 w-full" onClick={() => handleCompleteRide}>
+                Confirm Pickup
               </Button>
             )}
 

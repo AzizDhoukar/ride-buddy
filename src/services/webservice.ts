@@ -72,7 +72,7 @@ export const useWebSocket = () => {
                 longitude);
     };
 
-    const subscribeToRideRequests = () => {
+    const subscribeToRideRequests = (onMessage: (data: any) => void) => {
         const client = stompClientRef.current;
         if (!client || !client.active) return;
 
@@ -86,8 +86,10 @@ export const useWebSocket = () => {
             (message) => {
                 const data = JSON.parse(message.body);
                 console.log("📢 Ride request:", data);
+                onMessage(data);
             }
         );
+        console.log("📢 subscribed to Ride request");
     };
 
     const unsubscribeFromRideRequests = () => {

@@ -93,12 +93,11 @@ export default function CustomerHome() {
     }
   };
 
-  const getMapViewStatus = (): "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" => {
+  const getMapViewStatus = (): "idle" | "searching" | "in-progress" | "completed" => {
     if (!ride) return "idle";
     switch (ride.status) {
       case "pending": return "searching";
-      case "accepted": return "accepted";
-      case "arriving": return "arriving";
+      case "in-progress": return "in-progress";
       case "completed": return "completed";
       default: return "idle";
     }
@@ -124,8 +123,7 @@ export default function CustomerHome() {
     if (["active_ride"].includes(uiState)) {
       const getStatusText = () => {
         switch (ride.status) {
-          case "accepted": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
-          case "arriving": return { title: "Driver is arriving", subtitle: "Nearly at your pickup point" };
+          case "in-progress": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
           case "in-progress": return { title: "Ride in Progress", subtitle: `Heading to Random Destination` };
           default: return { title: "", subtitle: "" };
         }
