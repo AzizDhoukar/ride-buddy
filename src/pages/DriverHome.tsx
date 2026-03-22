@@ -1,21 +1,18 @@
 import { lerp } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Navigation, Star, Clock, Check, X, MessageCircle, Phone, DollarSign } from "lucide-react";
+import { Navigation, Star, Clock, Check, X, MessageCircle } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
-import * as webservice from "@/services/webservice";
 import { DriverDashboard, Ride, RideRequest } from "@/services/types";
 import { acceptRide, getDriverDashboard, rejectRide, setOnlineStatus, updateRideStatus } from "@/services/api";
 import { websocket } from "@/services/webservice";
 
 export default function DriverHome() {
-  const { user, isDriverOnline, setIsDriverOnline } = useApp();
-  const navigate = useNavigate();
+  const { user, isDriverOnline, token, setIsDriverOnline } = useApp();
   const [rideRequest, setRideRequest] = useState<RideRequest | null>(null);
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
@@ -52,36 +49,24 @@ export default function DriverHome() {
     };
   }, [isDriverOnline, rideRequest, activeRide]);
 
-  // Broadcast location when on an active ride
+  // Broadcast location
   useEffect(() => {
-    if (!activeRide || !activeRide.driverLocation || !activeRide.pickupLocation) return;
+    if (!isDriverOnline) return;
 
+    
     const locationInterval = setInterval(() => {
       const startLat = activeRide.driverLocation.lat;
       const startLng = activeRide.driverLocation.lng;
+      websocket.sendLocation('789', startLng, startLat);
 
-      if (movementProgress.current < 1) {
-        movementProgress.current += 0.05; // Move 5% of the way each interval
-        const newLat = lerp(startLat, startLng*10, movementProgress.current);
-        const newLng = lerp(startLng, startLng*10, movementProgress.current);
-
-        const newLocation = { lat: newLat, lng: newLng };
-
-        websocket.sendLocation('789', newLat, newLng);
-
-        setActiveRide(prev => prev ? { ...prev, driverLocation: newLocation } : null);
-      } else {
-        // Optionally, stop the interval when destination is reached
-        // clearInterval(locationInterval);
-      }
-    }, 1000); // Update every second
+    }, 2000); // Update every 2 seconds
 
     return () => clearInterval(locationInterval);
   }, [activeRide]);
 
   const toggleOnline = async () => {
     const next = !isDriverOnline;
-    await setOnlineStatus(next);
+    await setOnlineStatus(next, user.id, token);
     setIsDriverOnline(next);
     if (!next) {
       setRideRequest(null);

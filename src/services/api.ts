@@ -106,11 +106,23 @@ export const cancelRide = async (rideId: string, token: string) => {
 
 
 
-export const setOnlineStatus = async (isOnline: boolean): Promise<{ success: boolean }> => {
-  console.log('isDriverOnline', isDriverOnline);
-    console.log('isDriverOnline', isDriverOnline);
+export const setOnlineStatus = async (isOnline: boolean, useId:string, token: string) => {
+  const response = await fetch(`${API_BASE_URL}/drivers/me/profile/online`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      userId: useId,
+      isOnline: isOnline
+    }),
+  });
 
-  return simulateDelay({ success: true });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to cancel ride");
+  }
 };
 
 export const acceptRide = async (rideId: string, driver: User): Promise<Ride> => {
