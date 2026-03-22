@@ -9,7 +9,7 @@ import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
 import * as api from "@/services/api";
 import { Ride } from "@/services/types";
-import { websocket } from "@/services/webservice";
+import { useWebSocket } from "@/services/webservice";
 
 type UiState = "idle" | "destination" | "searching" | "active_ride";
 
@@ -18,6 +18,12 @@ export default function CustomerHome() {
   const [uiState, setUiState] = useState<UiState>("idle");
   const [showChat, setShowChat] = useState(false);
   const [ride, setRide] = useState<Ride | null>(null);
+  const {
+    disconnect,
+    unsubscribeFromRideRequests,
+    sendLocation,
+    subscribeToRideRequests
+  } = useWebSocket();
 
   // Listen for ride updates via WebSocket
   useEffect(() => {
@@ -37,11 +43,8 @@ export default function CustomerHome() {
         }
       }
     };
-
-    websocket.connect();
-
     return () => {
-      websocket.disconnect();
+      disconnect();
     };
   }, [ride, user]);
 

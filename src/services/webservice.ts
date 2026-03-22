@@ -1,93 +1,110 @@
+import { useApp } from '@/contexts/AppContext';
 import * as StompJs from '@stomp/stompjs';
-import { timeStamp } from 'console';
+import { useEffect, useRef } from 'react';
 import SockJS from 'sockjs-client';
 
-const stompClient = new StompJs.Client({
-    webSocketFactory: () => new SockJS('http://localhost:9090/ws'),
-    reconnectDelay: 5000
-});
+export const useWebSocket = () => {
+    const { token } = useApp();
 
-let locationSubscription: StompJs.StompSubscription | null = null;
+    const stompClientRef = useRef<StompJs.Client | null>(null);
+    const locationSubscriptionRef = useRef<StompJs.StompSubscription | null>(null);
+    const rideRequestSubscriptionRef = useRef<StompJs.StompSubscription | null>(null);
 
-const websocket = {
-    connect: () => {
-        stompClient.onConnect = () => {
+    useEffect(() => {
+        const client = new StompJs.Client({
+            webSocketFactory: () => new SockJS('http://localhost:9090/ws'),
+            connectHeaders: {
+                token: token || '',
+            },
+            reconnectDelay: 5000,
+        });
+
+        client.onConnect = () => {
             console.log("✅ Connected to WebSocket");
-            websocket.subscribeToDriver();
         };
 
-        stompClient.onStompError = (frame) => {
-            console.error('Broker reported error: ' + frame.headers['message']);
-            console.error('Additional details: ' + frame.body);
+        client.onStompError = (frame) => {
+            console.error('Broker error:', frame.headers['message']);
+            console.error('Details:', frame.body);
         };
 
-        stompClient.activate();
-    },
+        stompClientRef.current = client;
+        client.activate();
 
-    disconnect: () => {
-        if (stompClient.active) {
-            stompClient.deactivate();
-        }
-        console.log("🛑 Disconnected from WebSocket");
-    },
-
-    subscribeToLocations: () => {
-        if (!stompClient.active) {
-            console.warn("Cannot subscribe, Stomp client is not active.");
-            return;
-        }
-        if (locationSubscription) {
-            console.warn("Already subscribed to locations. Unsubscribe first.");
-            return;
-        }
-        locationSubscription = stompClient.subscribe('/topic/locations', (message) => {
-            const data = JSON.parse(message.body);
-            console.log("📢 location data" , data);
-        });
-        console.log("📢 Subscribed to /topic/locations");
-    },
-
-    subscribeToDriver: () => {
-        if (!stompClient.active) {
-            console.warn("Cannot subscribe, Stomp client is not active.");
-            return;
-        }
-        if (locationSubscription) {
-            console.warn("Already subscribed to Driver. Unsubscribe first.");
-            return;
-        }
-        locationSubscription = stompClient.subscribe('/topic/driver/789', (message) => {
-            const data = JSON.parse(message.body);
-            console.log("📢 Driver location data" , data);
-        });
-        console.log("📢 Subscribed to /topic/driver/789");
-    },
-
-    unsubscribeFromLocations: () => {
-        if (locationSubscription) {
-            locationSubscription.unsubscribe();
-            locationSubscription = null;
-            console.log("🔕 Unsubscribed from /topic/locations");
-        }
-    },
-
-    sendLocation: (driverId: string, latitude: number, longitude: number) => {
-        if (!stompClient.active) {
-            console.warn("Cannot send location, Stomp client is not active.");
-            return;
-        }
-        const payload = {
-            driverId,
-            latitude,
-            longitude,
-            timestamp: new Date()
+        return () => {
+            client.deactivate();
         };
-        stompClient.publish({
+    }, [token]);
+
+    const subscribeToDriver = (driverId: string) => {
+        const client = stompClientRef.current;
+        if (!client || !client.active) return;
+
+        if (locationSubscriptionRef.current) {
+            console.warn("Already subscribed to driver");
+            return;
+        }
+
+        locationSubscriptionRef.current = client.subscribe(
+            `/topic/driver/${driverId}`,
+            (message) => {
+                const data = JSON.parse(message.body);
+                console.log("📢 Driver location:", data);
+            }
+        );
+    };
+
+    const sendLocation = (driverId: string, latitude: number, longitude: number) => {
+        const client = stompClientRef.current;
+        if (!client || !client.active) return;
+
+        client.publish({
             destination: "/app/driver/location-update",
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                driverId,
+                latitude,
+                longitude,
+                timestamp: new Date(),
+            }),
         });
-        console.log("📍 Sent location: " + JSON.stringify(payload));
-    }
-};
+        console.log('sendLocation: ', driverId,
+                latitude,
+                longitude);
+    };
 
-export { websocket };
+    const subscribeToRideRequests = () => {
+        const client = stompClientRef.current;
+        if (!client || !client.active) return;
+
+        if (rideRequestSubscriptionRef.current) {
+            console.warn("Already subscribed to ride requests");
+            return;
+        }
+
+        rideRequestSubscriptionRef.current = client.subscribe(
+            '/user/queue/new-ride-request',
+            (message) => {
+                const data = JSON.parse(message.body);
+                console.log("📢 Ride request:", data);
+            }
+        );
+    };
+
+    const unsubscribeFromRideRequests = () => {
+        rideRequestSubscriptionRef.current?.unsubscribe();
+        rideRequestSubscriptionRef.current = null;
+    };
+
+    const disconnect = () => {
+        stompClientRef.current?.deactivate();
+        console.log("🛑 Disconnected");
+    };
+
+    return {
+        subscribeToDriver,
+        subscribeToRideRequests,
+        unsubscribeFromRideRequests,
+        sendLocation,
+        disconnect,
+    };
+};

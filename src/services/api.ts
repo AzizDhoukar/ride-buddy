@@ -1,7 +1,7 @@
 import { UserRole, User } from "@/contexts/AppContext";
 import { Ride, DriverDashboard, Message } from "./types";
 import { mockRides, mockMessages, newMessageId, isDriverOnline } from "./mockData";
-import { websocket } from "./webservice";
+import { useWebSocket } from "./webservice";
 
 
 // --- API FUNCTIONS (REST) ---
@@ -53,7 +53,11 @@ export const checkAuth = async (token: string): Promise<User> => {
 };
 
 export const logout = async (token: string): Promise<void> => {
-  websocket.disconnect();
+  const {
+    disconnect
+  } = useWebSocket();
+
+  disconnect();
   // In a real application, you would send a request to the backend to invalidate the token
   console.log("Token invalidated (simulated):", token);
   return Promise.resolve();
@@ -103,8 +107,6 @@ export const cancelRide = async (rideId: string, token: string) => {
 };
 
 // --- DRIVER API ---
-
-
 
 export const setOnlineStatus = async (isOnline: boolean, useId:string, token: string) => {
   const response = await fetch(`${API_BASE_URL}/drivers/me/profile/online`, {

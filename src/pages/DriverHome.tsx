@@ -9,7 +9,7 @@ import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
 import { DriverDashboard, Ride, RideRequest } from "@/services/types";
 import { acceptRide, getDriverDashboard, rejectRide, setOnlineStatus, updateRideStatus } from "@/services/api";
-import { websocket } from "@/services/webservice";
+import { useWebSocket } from "@/services/webservice";
 
 export default function DriverHome() {
   const { user, isDriverOnline, token, setIsDriverOnline } = useApp();
@@ -18,6 +18,12 @@ export default function DriverHome() {
   const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
   const [showChat, setShowChat] = useState(false);
   const movementProgress = useRef(0);
+  const {
+    disconnect,
+    unsubscribeFromRideRequests,
+    sendLocation,
+    subscribeToRideRequests
+  } = useWebSocket();
 
   // Fetch dashboard data when component mounts
   useEffect(() => {
@@ -42,10 +48,8 @@ export default function DriverHome() {
       }
     };
 
-    websocket.connect();
-
     return () => {
-      websocket.disconnect();
+      disconnect();
     };
   }, [isDriverOnline, rideRequest, activeRide]);
 
@@ -58,8 +62,7 @@ export default function DriverHome() {
     const locationInterval = setInterval(() => {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
-        console.log('new position: ', user.id, longitude, latitude);
-        websocket.sendLocation(user.id, longitude, latitude);
+        sendLocation(user.id, longitude, latitude);
       });
     }, 2000); // Update every 2 seconds
 
@@ -70,9 +73,13 @@ export default function DriverHome() {
     const next = !isDriverOnline;
     await setOnlineStatus(next, user.id, token);
     setIsDriverOnline(next);
-    if (!next) {
+    if (next) {
+      subscribeToRideRequests();
+    } else {
       setRideRequest(null);
+      unsubscribeFromRideRequests();
     }
+
   };
 
   const handleAcceptRide = async () => {
