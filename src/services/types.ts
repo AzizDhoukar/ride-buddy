@@ -2,7 +2,7 @@ import { UserRole, User } from "@/contexts/AppContext";
 
 // --- MOCK DATA AND TYPES ---
 
-export type RideStatus = "pending" | "in-progress" | "completed" | "canceled";
+export type RideStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 
 export interface Ride {
   id: string;

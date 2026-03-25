@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Navigation, Search, X, Star, Phone, MessageCircle, CreditCard } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
@@ -20,33 +19,33 @@ export default function CustomerHome() {
   const [ride, setRide] = useState<Ride | null>(null);
   const {
     disconnect,
-    unsubscribeFromRideRequests,
-    sendLocation,
-    subscribeToRideRequests
+    subscribeToRideUpdates
   } = useWebSocket();
 
-  // Listen for ride updates via WebSocket
-  useEffect(() => {
-    const handleRideUpdate = (updatedRide: Ride) => {
-      console.log('ride', ride);
+  const handleRideUpdate = (updatedRide: Ride) => {
+    setRide((prevRide) => {
 
-      if (ride?.id === updatedRide.id) {
+      if (prevRide?.id === updatedRide.id) {
         console.log('[WS] Received ride update:', updatedRide);
-        setRide(updatedRide);
-        setUiState("active_ride");
 
-        if (updatedRide.status === "completed" || updatedRide.status === "canceled") {
+        if (
+          updatedRide.status === "COMPLETED" ||
+          updatedRide.status === "CANCELLED"
+        ) {
           setTimeout(() => {
             setRide(null);
             setUiState("idle");
           }, 3000);
         }
+
+        return updatedRide;
       }
-    };
-    return () => {
-      disconnect();
-    };
-  }, [ride, user]);
+
+      return prevRide;
+  });
+
+  setUiState("active_ride");
+};
 
   const handleRequestRide = () => {
     if (!user || !token) return;
@@ -67,8 +66,8 @@ export default function CustomerHome() {
             status: response.status,
             createdAt: response.createdAt,
           });
+          subscribeToRideUpdates(response.id, handleRideUpdate);
           console.log('response', response);
-          console.log('ride', ride);
         } catch (error) {
           console.error("Failed to create ride:", error);
           setUiState("idle");
@@ -93,13 +92,13 @@ export default function CustomerHome() {
     }
   };
 
-  const getMapViewStatus = (): "idle" | "searching" | "in-progress" | "completed" => {
-    if (!ride) return "idle";
+  const getMapViewStatus = (): "PENDING" | "IN_PROGRESS" | "COMPLETED" => {
+    if (!ride) return "PENDING";
     switch (ride.status) {
-      case "pending": return "searching";
-      case "in-progress": return "in-progress";
-      case "completed": return "completed";
-      default: return "idle";
+      case "PENDING": return "PENDING";
+      case "IN_PROGRESS": return "IN_PROGRESS";
+      case "COMPLETED": return "COMPLETED";
+      default: return "PENDING";
     }
   };
 
@@ -123,8 +122,8 @@ export default function CustomerHome() {
     if (["active_ride"].includes(uiState)) {
       const getStatusText = () => {
         switch (ride.status) {
-          case "in-progress": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
-          case "in-progress": return { title: "Ride in Progress", subtitle: `Heading to Random Destination` };
+          case "IN_PROGRESS": return { title: "Driver found!", subtitle: `Arriving in 4 min` };
+          case "IN_PROGRESS": return { title: "Ride in Progress", subtitle: `Heading to Random Destination` };
           default: return { title: "", subtitle: "" };
         }
       };
@@ -180,7 +179,7 @@ export default function CustomerHome() {
       <MapView
         className="flex-1"
         rideStatus={getMapViewStatus()}
-        showRoute={!!ride && ride.status !== "pending"}
+        showRoute={!!ride && ride.status !== "PENDING"}
         driverLocation={ride?.driverLocation ? { latitude: ride.driverLocation.lat, longitude: ride.driverLocation.lng } : undefined}
         customerLocation={ride?.pickupLocation ? { latitude: ride.pickupLocation.lat, longitude: ride.pickupLocation.lng } : undefined}
       />

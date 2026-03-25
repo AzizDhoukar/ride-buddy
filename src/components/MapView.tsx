@@ -15,7 +15,7 @@ interface MapViewProps {
   driverLocation?: LocationPoint;
   customerLocation?: LocationPoint;
   showRoute?: boolean;
-  rideStatus?: "idle" | "searching" | "accepted" | "arriving" | "in-progress" | "completed" | "pending" | "canceled";
+  rideStatus?: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 }
 
 export default function MapView({
@@ -23,7 +23,7 @@ export default function MapView({
   pickupLocation,
   driverLocation,
   customerLocation,
-  rideStatus = "idle",
+  rideStatus = "PENDING",
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -148,7 +148,7 @@ export default function MapView({
       <div ref={mapContainer} className="h-full w-full" />
 
       {/* ETA overlay when driver is en route */}
-      {rideStatus === "arriving" && (
+      {rideStatus === "IN_PROGRESS" && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

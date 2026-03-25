@@ -1,7 +1,6 @@
-import { lerp } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Navigation, Star, Clock, Check, X, MessageCircle } from "lucide-react";
+import { Star, Clock, Check, X, MessageCircle } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import MapView from "@/components/MapView";
@@ -21,9 +20,32 @@ export default function DriverHome() {
   const {
     disconnect,
     unsubscribeFromRideRequests,
+    subscribeToRideUpdates,
     sendLocation,
     subscribeToRideRequests
   } = useWebSocket();
+
+    const handleRideUpdate = (updatedRide: Ride) => {
+    setActiveRide((prevRide) => {
+
+      if (prevRide?.id === updatedRide.id) {
+        console.log('[WS] Received ride update:', updatedRide);
+
+        if (
+          updatedRide.status === "COMPLETED" ||
+          updatedRide.status === "CANCELLED"
+        ) {
+          setTimeout(() => {
+            setActiveRide(null);
+          }, 3000);
+        }
+
+        return updatedRide;
+      }
+
+      return prevRide;
+  });
+};
 
   useEffect(() => {
     if (!isDriverOnline) return;
@@ -55,7 +77,7 @@ export default function DriverHome() {
     };
 
     const handleRideUpdate = (updatedRide: Ride) => {
-      if (activeRide?.id === updatedRide.id && updatedRide.status === 'canceled') {
+      if (activeRide?.id === updatedRide.id && updatedRide.status === 'CANCELLED') {
         console.log('[WS] Active ride was canceled by customer:', updatedRide);
         setActiveRide(null);
         setShowChat(false);
@@ -76,7 +98,7 @@ export default function DriverHome() {
     const locationInterval = setInterval(() => {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
-        sendLocation(user.id, longitude, latitude);
+        sendLocation(user.id, latitude, longitude);
       });
     }, 2000); // Update every 2 seconds
 
@@ -99,6 +121,7 @@ export default function DriverHome() {
     if (!rideRequest || !user) return;
     try {
       const acceptedRide = await acceptRide(rideRequest.id, token);
+      subscribeToRideUpdates(rideRequest.id, handleRideUpdate);
       setActiveRide(acceptedRide);
       setRideRequest(null);
     } catch (error) {
@@ -113,7 +136,7 @@ export default function DriverHome() {
     setRideRequest(null);
   };
 
-  const handleUpdateRideStatus = async (status: "in-progress") => {
+  const handleUpdateRideStatus = async (status: "IN_PROGRESS") => {
     if (!activeRide) return;
     await updateRideStatus(activeRide.id, status);
     setActiveRide(prev => prev ? { ...prev, status } : null);
@@ -122,7 +145,7 @@ export default function DriverHome() {
 
   const handleCompleteRide = async () => {
     if (!activeRide) return;
-    await updateRideStatus(activeRide.id, "completed");
+    await updateRideStatus(activeRide.id, "COMPLETED");
     setActiveRide(null);
     setShowChat(false);
     movementProgress.current = 0;
@@ -131,8 +154,8 @@ export default function DriverHome() {
 
   const getMapViewStatus = () => {
     if (activeRide) return activeRide.status;
-    if (rideRequest) return "accepted";
-    return "idle";
+    if (rideRequest) return "IN_PROGRESS";
+    return "PENDING";
   };
 
   const currentRide = activeRide || rideRequest;
@@ -253,16 +276,16 @@ export default function DriverHome() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold">
-                  {activeRide.status === "in-progress" ? "Arriving at Pickup" : "En Route to Destination"}
+                  {activeRide.status === "IN_PROGRESS" ? "Arriving at Pickup" : "En Route to Destination"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {activeRide.status === "in-progress"
+                  {activeRide.status === "IN_PROGRESS"
                     ? `Picking up ${activeRide.customerName}`
                     : `Dropping off ${activeRide.customerName}`}
                 </p>
               </div>
               <span className="rounded-full bg-ride-active/10 px-3 py-1 text-xs font-medium text-ride-active">
-                {activeRide.status === "in-progress" ? "In Progress" : "Arriving"}
+                {activeRide.status === "IN_PROGRESS" ? "In Progress" : "Arriving"}
               </span>
             </div>
 
@@ -281,7 +304,7 @@ export default function DriverHome() {
               </Button>
             </div>
 
-            {activeRide.status === "in-progress" && (
+            {activeRide.status === "IN_PROGRESS" && (
               <Button size="lg" className="mt-3 w-full" onClick={() => handleCompleteRide}>
                 Confirm Pickup
               </Button>

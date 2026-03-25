@@ -164,7 +164,7 @@ export const rejectRide = async (rideId: string): Promise<{ success: boolean }> 
   return simulateDelay({ success: mockRides.length < initialLength });
 };
 
-export const updateRideStatus = async (rideId: string, status: "in-progress" | "completed"): Promise<Ride> => {
+export const updateRideStatus = async (rideId: string, status: "IN_PROGRESS" | "COMPLETED"): Promise<Ride> => {
   const ride = mockRides.find(r => r.id === rideId);
   if (!ride) throw new Error("Ride not found");
   ride.status = status;
