@@ -157,6 +157,36 @@ export const acceptRide = async (rideId: string, token: string): Promise<Ride> =
   return ride;
 };
 
+export const completeRide = async (rideId: string, token: string): Promise<Ride> => {
+    const response = await fetch(`${API_BASE_URL}/rides/${rideId}/complete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to complete ride");
+  }
+
+  const data = await response.json();
+  let ride: Ride = {
+    id: data.id,
+    customerId: data.customerId,
+    driverId: data.driverId,
+    pickupLocation: {
+      lat: data.pickupLatitude,
+      lng: data.pickupLongitude
+    },
+    status: data.status,
+    createdAt: data.requestedAt
+  };
+
+  return ride;
+};
+
 export const rejectRide = async (rideId: string): Promise<{ success: boolean }> => {
   const initialLength = mockRides.length;
   let rides = mockRides.filter(r => r.id !== rideId);

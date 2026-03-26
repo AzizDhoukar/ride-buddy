@@ -7,7 +7,7 @@ import MapView from "@/components/MapView";
 import BottomNav from "@/components/BottomNav";
 import ChatWindow from "@/components/ChatWindow";
 import { DriverDashboard, Ride, RideRequest } from "@/services/types";
-import { acceptRide, getDriverDashboard, rejectRide, setOnlineStatus, updateRideStatus } from "@/services/api";
+import { acceptRide, getDriverDashboard, rejectRide, setOnlineStatus, updateRideStatus, completeRide } from "@/services/api";
 import { useWebSocket } from "@/services/webservice";
 
 export default function DriverHome() {
@@ -62,26 +62,12 @@ export default function DriverHome() {
     };
   }, [isDriverOnline]);
 
-  // Fetch dashboard data when component mounts
-  useEffect(() => {
-    getDriverDashboard().then(setDashboard);
-  }, []);
-
   // Listen for WebSocket events
   useEffect(() => {
     const handleNewRequest = (request: RideRequest) => {
       if (isDriverOnline && !rideRequest && !activeRide) {
         console.log('[WS] Received new ride request:', request);
         setRideRequest(request);
-      }
-    };
-
-    const handleRideUpdate = (updatedRide: Ride) => {
-      if (activeRide?.id === updatedRide.id && updatedRide.status === 'CANCELLED') {
-        console.log('[WS] Active ride was canceled by customer:', updatedRide);
-        setActiveRide(null);
-        setShowChat(false);
-        movementProgress.current = 0;
       }
     };
 
@@ -144,12 +130,16 @@ export default function DriverHome() {
   };
 
   const handleCompleteRide = async () => {
+    console.log('activeRide',activeRide);
     if (!activeRide) return;
-    await updateRideStatus(activeRide.id, "COMPLETED");
-    setActiveRide(null);
-    setShowChat(false);
-    movementProgress.current = 0;
-    getDriverDashboard().then(setDashboard);
+    try {
+      const completedRide = await completeRide(activeRide.id, token);;
+      setActiveRide(null);
+      setRideRequest(null);
+    } catch (error) {
+      console.error("Failed to complete ride:", error);
+      setRideRequest(null);
+    }
   };
 
   const getMapViewStatus = () => {
@@ -167,7 +157,6 @@ export default function DriverHome() {
         rideStatus={getMapViewStatus()}
         showRoute={!!currentRide}
         driverLocation={activeRide?.driverLocation ? { latitude: activeRide.driverLocation.lat, longitude: activeRide.driverLocation.lng } : undefined}
-        pickupLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
         customerLocation={currentRide?.pickupLocation ? { latitude: currentRide.pickupLocation.lat, longitude: currentRide.pickupLocation.lng } : undefined}
       />
 
@@ -305,7 +294,7 @@ export default function DriverHome() {
             </div>
 
             {activeRide.status === "IN_PROGRESS" && (
-              <Button size="lg" className="mt-3 w-full" onClick={() => handleCompleteRide}>
+              <Button size="lg" className="mt-3 w-full" onClick={handleCompleteRide}>
                 Confirm Pickup
               </Button>
             )}

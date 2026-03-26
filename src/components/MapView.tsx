@@ -20,7 +20,6 @@ interface MapViewProps {
 
 export default function MapView({
   className = "",
-  pickupLocation,
   driverLocation,
   customerLocation,
   rideStatus = "PENDING",
@@ -110,25 +109,12 @@ export default function MapView({
       if (driverMarker.current) {
         driverMarker.current.setLngLat([driverLocation.longitude, driverLocation.latitude]);
       } else {
-        driverMarker.current = new maplibregl.Marker({ color: "#0000FF" }) // Blue for driver
+        driverMarker.current = new maplibregl.Marker({ color: "#00FF00" }) // Blue for driver
           .setLngLat([driverLocation.longitude, driverLocation.latitude])
           .addTo(map.current);
       }
     }
   }, [driverLocation]);
-
-  useEffect(() => {
-    console.log('pickupLocation', pickupLocation);
-    if (map.current && pickupLocation) {
-      if (pickupMarker.current) {
-        pickupMarker.current.setLngLat([pickupLocation.longitude, pickupLocation.latitude]);
-      } else {
-        pickupMarker.current = new maplibregl.Marker({ color: "#00FF00" }) // Green for pickup
-          .setLngLat([pickupLocation.longitude, pickupLocation.latitude])
-          .addTo(map.current);
-      }
-    }
-  }, [pickupLocation]);
 
   useEffect(() => {
     if (map.current && customerLocation && customerLocation.latitude && customerLocation.longitude) {
